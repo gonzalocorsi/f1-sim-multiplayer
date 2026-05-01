@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mando de Carreras</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; overflow: hidden; margin: 0; padding: 20px; user-select: none; }
+        .btn { width: 90%; height: 120px; margin: 10px auto; border: 5px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; border-radius: 20px; }
+        #accel { background: #1a1a1a; }
+        #accel.active { background: #fff; color: #000; }
+        #start-btn { background: #fff; color: #000; height: 60px; font-size: 18px; }
+        #debug { color: #888; font-family: monospace; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div id="start-btn" class="btn">TOCÁ ACÁ PARA EMPEZAR</div>
+    
+    <div id="gamepad" style="display: none;">
+        <h1>CONECTADO</h1>
+        <div id="accel" class="btn">ACELERAR</div>
+        <p id="debug">Incliná para doblar</p>
+    </div>
+
+    <script>
+        const socket = io();
+        const debug = document.getElementById('debug');
+        const startBtn = document.getElementById('start-btn');
+        const gamepad = document.getElementById('gamepad');
+        const accelBtn = document.getElementById('accel');
+        let isGas = false;
+
+        // ACTIVACIÓN
+        startBtn.onclick = function() {
+    // 1. Pedir permiso inmediatamente (sin esperas)
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+            .then(permissionState => {
+                if (permissionState === 'granted') {
+                    activarSensores();
+                } else {
+                    alert("Permiso denegado. Entrá a Ajustes > Safari > Acceso a movimiento y orientación.");
+                }
+            })
+            .catch(console.error);
+    } else {
+        // Si no es iOS o no necesita permiso, activamos directo
+        activarSensores();
+    }
+};
+
+function activarSensores() {
+    startBtn.style.display = 'none';
+    gamepad.style.display = 'block';
+
+    // Detectamos si es iPhone/iPad/iPod
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    window.addEventListener('devicemotion', (event) => {
+        let accelX = event.accelerationIncludingGravity.x || 0;
+        
+        // REGLA DE ORO: 
+        // En Android, inclinación a la derecha suele ser negativo.
+        // En iOS, suele ser positivo (o viceversa según el modo).
+        // Si sigue invertido, cambiá el 'isIOS ? -accelX : accelX'
+        let finalX = isIOS ? accelX : -accelX; 
+
+        let turnValue = finalX / 5; 
+
+        socket.emit('drive', {
+            turn: turnValue, 
+            gas: isGas
+        });
+
+        debug.innerText = `OS: ${isIOS ? 'iOS' : 'Android'} | X: ${Math.round(accelX)}`;
+    }, true);
+}
+
+        // BOTÓN GAS
+        accelBtn.ontouchstart = (e) => { e.preventDefault(); isGas = true; accelBtn.classList.add('active'); };
+        accelBtn.ontouchend = (e) => { e.preventDefault(); isGas = false; accelBtn.classList.remove('active'); };
+    </script>
+</body>
+</html>
