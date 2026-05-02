@@ -17,6 +17,40 @@ const io = new Server(httpServer, {
 // Asegúrate de que index.html y tv.html estén en una carpeta llamada 'public'
 app.use(express.static(path.join(__dirname, '../public')));
 
+
+// Agregá esta variable arriba del io.on
+let hostId: string | null = null;
+
+io.on('connection', (socket) => {
+    console.log('Conectado:', socket.id);
+    
+    // Si no hay host, el primero que entra toma el mando
+    if (!hostId) {
+        hostId = socket.id;
+        socket.emit('is_host', true);
+    }
+
+    socket.on('drive', (data) => {
+        socket.broadcast.emit('player_update', { id: socket.id, ...data });
+    });
+
+    // Escuchar el pedido de reinicio
+    socket.on('request_restart', () => {
+        if (socket.id === hostId) {
+            io.emit('start_countdown'); // Le avisamos a todos (especialmente a la TV)
+        }
+    });
+
+    socket.on('disconnect', () => {
+        io.emit('player_disconnected', socket.id);
+        if (socket.id === hostId) {
+            hostId = null;
+            // Opcional: Podrías buscar otro socket para pasarle el host, 
+            // pero para simplificar, el próximo que conecte será el host.
+        }
+    });
+});
+
 io.on('connection', (socket) => {
     console.log('Conectado:', socket.id);
     

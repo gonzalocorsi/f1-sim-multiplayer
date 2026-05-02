@@ -19,6 +19,15 @@
             border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+		
+		#lights-container {
+    position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
+    display: none; gap: 20px; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 20px;
+}
+.light { width: 60px; height: 60px; border-radius: 50%; background: #333; }
+.red { background: #ff0000; box-shadow: 0 0 20px #ff0000; }
+.yellow { background: #ffaa00; box-shadow: 0 0 20px #ffaa00; }
+.green { background: #00ff00; box-shadow: 0 0 20px #00ff00; }
     </style>
 </head>
 <body>
@@ -31,7 +40,13 @@
         <h2 style="margin:0; color: #e10600;">FORMULA 1®</h2>
         <p style="margin:0; opacity: 0.7;">LIVE CIRCUIT DATA</p>
     </div>
+	<div id="lights-container">
+    <div id="l1" class="light"></div>
+    <div id="l2" class="light"></div>
+    <div id="l3" class="light"></div>
+</div>
     <script>
+	
 	const socket = io();
 	socket.on('connect', () => {
     document.getElementById('status-text').innerText = "CIRCUIT READY";
@@ -39,6 +54,31 @@
         document.getElementById('loading-screen').style.opacity = '0';
         setTimeout(() => document.getElementById('loading-screen').remove(), 500);
     }, 1000);
+});
+socket.on('start_countdown', () => {
+    const container = document.getElementById('lights-container');
+    const l1 = document.getElementById('l1');
+    const l2 = document.getElementById('l2');
+    const l3 = document.getElementById('l3');
+
+    container.style.display = 'flex';
+    
+    // Secuencia de semáforo
+    setTimeout(() => l1.classList.add('red'), 1000);
+    setTimeout(() => l2.classList.add('yellow'), 2000);
+    setTimeout(() => l3.classList.add('green'), 3000);
+    
+    setTimeout(() => {
+        container.style.display = 'none';
+        l1.classList.remove('red');
+        l2.classList.remove('yellow');
+        l3.classList.remove('green');
+        
+        // OPCIONAL: Resetear posiciones de autos aquí si querés
+        Object.values(players).forEach(car => {
+            // Podrías mandarlos al spawn aquí
+        });
+    }, 5000);
 });
 
         const { Engine, Render, Runner, Bodies, Composite, Body, Events } = Matter;
