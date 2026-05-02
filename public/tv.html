@@ -32,6 +32,7 @@
         <p style="margin:0; opacity: 0.7;">LIVE CIRCUIT DATA</p>
     </div>
     <script>
+	const socket = io();
 	socket.on('connect', () => {
     document.getElementById('status-text').innerText = "CIRCUIT READY";
     setTimeout(() => {
