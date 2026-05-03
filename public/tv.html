@@ -21,13 +21,13 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 		
 		#lights-container {
-    position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
-    display: none; gap: 20px; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 20px;
-}
-.light { width: 60px; height: 60px; border-radius: 50%; background: #333; }
-.red { background: #ff0000; box-shadow: 0 0 20px #ff0000; }
-.yellow { background: #ffaa00; box-shadow: 0 0 20px #ffaa00; }
-.green { background: #00ff00; box-shadow: 0 0 20px #00ff00; }
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
+            display: none; gap: 20px; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 20px;
+        }
+        .light { width: 60px; height: 60px; border-radius: 50%; background: #333; }
+        .red { background: #ff0000; box-shadow: 0 0 20px #ff0000; }
+        .yellow { background: #ffaa00; box-shadow: 0 0 20px #ffaa00; }
+        .green { background: #00ff00; box-shadow: 0 0 20px #00ff00; }
     </style>
 </head>
 <body>
@@ -45,275 +45,253 @@
     <div id="l2" class="light"></div>
     <div id="l3" class="light"></div>
 </div>
-    <script>
-	
+
+<script>
 	const socket = io();
+
 	socket.on('connect', () => {
-    document.getElementById('status-text').innerText = "CIRCUIT READY";
-    setTimeout(() => {
-        document.getElementById('loading-screen').style.opacity = '0';
-        setTimeout(() => document.getElementById('loading-screen').remove(), 500);
-    }, 1000);
-});
-socket.on('start_countdown', () => {
-    const container = document.getElementById('lights-container');
-    const l1 = document.getElementById('l1');
-    const l2 = document.getElementById('l2');
-    const l3 = document.getElementById('l3');
-
-    container.style.display = 'flex';
-    
-    // Secuencia de semáforo
-    setTimeout(() => l1.classList.add('red'), 1000);
-    setTimeout(() => l2.classList.add('yellow'), 2000);
-    setTimeout(() => l3.classList.add('green'), 3000);
-    
-    setTimeout(() => {
-        container.style.display = 'none';
-        l1.classList.remove('red');
-        l2.classList.remove('yellow');
-        l3.classList.remove('green');
-        
-        // OPCIONAL: Resetear posiciones de autos aquí si querés
-        Object.values(players).forEach(car => {
-            // Podrías mandarlos al spawn aquí
-        });
-    }, 5000);
-});
-
-        const { Engine, Render, Runner, Bodies, Composite, Body, Events } = Matter;
-
-        const engine = Engine.create();
-        engine.gravity.y = 0;
-
-        const render = Render.create({
-            element: document.body,
-            engine: engine,
-            options: { 
-                width: window.innerWidth, height: window.innerHeight, 
-                wireframes: false, background: '#252525' 
+        document.getElementById('status-text').innerText = "CIRCUIT READY";
+        setTimeout(() => {
+            const screen = document.getElementById('loading-screen');
+            if(screen) {
+                screen.style.opacity = '0';
+                setTimeout(() => screen.remove(), 500);
             }
-        });
+        }, 1000);
+    });
 
-        Render.run(render);
-        Runner.run(Runner.create(), engine);
+    socket.on('start_countdown', () => {
+        const container = document.getElementById('lights-container');
+        const l1 = document.getElementById('l1');
+        const l2 = document.getElementById('l2');
+        const l3 = document.getElementById('l3');
 
-        const w = window.innerWidth, h = window.innerHeight;
-        const cx = w / 2, cy = h / 2;
-        const wallOpt = { isStatic: true, render: { fillStyle: '#111' }, friction: 0 };
-
-        // --- PISTA ---
-        const trackLayout = [
-            Bodies.circle(cx, cy, 200, wallOpt), // Isla central
-            Bodies.rectangle(cx, cy - 300, 650, 20, wallOpt), // Techo
-            Bodies.rectangle(cx, cy + 300, 650, 20, wallOpt), // Piso
-            Bodies.rectangle(cx - 325, cy, 20, 600, wallOpt),   // Pared Izq
-            Bodies.rectangle(cx + 325, cy, 20, 600, wallOpt)    // Pared Der
-        ];
-        Composite.add(engine.world, trackLayout);
-
-// SENSORES (Ajustados para mejor detección en el carril)
-const finishLine = Bodies.rectangle(cx + 280, cy, 150, 20, { 
-    isStatic: true, isSensor: true, label: 'finish', render: { fillStyle: 'transparent' }
-});
-
-const checkpoint = Bodies.rectangle(cx - 280, cy, 150, 20, { 
-    isStatic: true, isSensor: true, label: 'checkpoint', render: { fillStyle: 'transparent' }
-});
-Composite.add(engine.world, [finishLine, checkpoint]);
-
-        const players = {};
-
-        socket.on('player_update', (data) => {
-    if (!players[data.id]) {
-        const color = '#' + Math.floor(Math.random()*16777215).toString(16);
+        container.style.display = 'flex';
         
-        // --- LÓGICA DE PARRILLA DE SALIDA ---
-        const playerCount = Object.keys(players).length;
-        const fila = Math.floor(playerCount / 2); // Cada 2 autos, bajamos una fila
-        const columna = playerCount % 2;          // 0 para izquierda, 1 para derecha
+        setTimeout(() => l1.classList.add('red'), 1000);
+        setTimeout(() => l2.classList.add('yellow'), 2000);
+        setTimeout(() => l3.classList.add('green'), 3000);
         
-        // Posicionamiento detrás de la meta (que está en cy)
-        // Ajustamos spawnX para que la columna 0 y 1 queden bien centradas en el carril
-        const spawnX = (cx + 245) + (columna * 40); 
-        const spawnY = (cy + 80) + (fila * 70);
+        setTimeout(() => {
+            container.style.display = 'none';
+            l1.classList.remove('red');
+            l2.classList.remove('yellow');
+            l3.classList.remove('green');
+        }, 5000);
+    });
 
-        players[data.id] = Bodies.rectangle(spawnX, spawnY, 60, 25, {
-            render: { fillStyle: color },
-            frictionAir: 0.1,
-            label: 'car',
-            angle: -Math.PI / 2 // ORIENTADO HACIA ARRIBA
-        });
+    const { Engine, Render, Runner, Bodies, Composite, Body, Events } = Matter;
+    const engine = Engine.create();
+    engine.gravity.y = 0; 
 
-        players[data.id].myColor = color;
-        players[data.id].playerId = data.id;
-        players[data.id].laps = 0;
-        players[data.id].passedCheckpoint = true;
-        
-        Composite.add(engine.world, players[data.id]);
-    }
-
-    const car = players[data.id];
-    car.isGas = data.gas;
-
-    // Movimiento y rotación
-    if (data.turn && Math.abs(data.turn) > 0.1) {
-        Body.setAngle(car, car.angle + (data.turn * 0.04));
-    }
-    
-    if (data.gas) {
-        const force = 0.007;
-        Body.applyForce(car, car.position, {
-            x: Math.cos(car.angle) * force,
-            y: Math.sin(car.angle) * force
-        });
-    }
-});
-
-        Events.on(engine, 'collisionStart', (event) => {
-    event.pairs.forEach((pair) => {
-        const { bodyA, bodyB } = pair;
-        // Buscamos cuál de los dos es el auto y cuál el sensor
-        const car = bodyA.label === 'car' ? bodyA : (bodyB.label === 'car' ? bodyB : null);
-        const sensor = bodyA.isSensor ? bodyA : (bodyB.isSensor ? bodyB : null);
-
-        if (car && sensor) {
-            if (sensor.label === 'checkpoint') {
-                car.passedCheckpoint = true;
-            }
-            if (sensor.label === 'finish' && car.passedCheckpoint) {
-                car.laps++;
-                car.passedCheckpoint = false;
-            }
+    const render = Render.create({
+        element: document.body,
+        engine: engine,
+        options: { 
+            width: window.innerWidth, height: window.innerHeight, 
+            wireframes: false, background: '#252525' 
         }
     });
-});
 
-        Events.on(render, 'afterRender', () => {
-            const ctx = render.context;
+    Render.run(render);
+    Runner.run(Runner.create(), engine);
 
-            // 1. DIBUJAR LÍNEA DE META (Extendida: +1 izq, +2 der)
-const celda = 6;
-const columnasH = 18; // Antes era 14, ahora sumamos 3 (1+2)
-const filasH = 2;    
-// Restamos 'celda' a la posición X para que crezca un cuadrado hacia la izquierda
-const metaX = (cx + 210) - celda; 
-const metaY = cy;      
+    const w = window.innerWidth, h = window.innerHeight;
+    const cx = w / 2, cy = h / 2;
+    const wallOpt = { isStatic: true, render: { fillStyle: '#111' }, friction: 0 };
 
-for (let f = 0; f < filasH; f++) {
-    for (let c = 0; c < columnasH; c++) {
-        ctx.fillStyle = (f + c) % 2 === 0 ? "#fff" : "#000";
-        ctx.fillRect(metaX + (c * celda), metaY + (f * celda), celda, celda);
-    }
-}
+    const trackLayout = [
+        Bodies.circle(cx - 400, cy, 200, wallOpt), 
+		Bodies.circle(cx + 400, cy , 200, wallOpt), 
+        Bodies.rectangle(cx, cy - 300, 1450, 20, wallOpt), 
+        Bodies.rectangle(cx, cy + 300, 1450, 20, wallOpt), 
+		Bodies.rectangle(cx, cy  , 800, 400, wallOpt), 
+        Bodies.rectangle(cx - 725, cy, 20, 600, wallOpt), 
+        Bodies.rectangle(cx + 725, cy, 20, 600, wallOpt)  
+    ];
+    Composite.add(engine.world, trackLayout);
 
-// Línea roja horizontal (ajustada al nuevo ancho)
-ctx.fillStyle = "#e10600";
-ctx.fillRect(metaX, metaY + (filasH * celda), columnasH * celda, 2);
+    const players = {}; 
 
-            // 2. TABLA DE POSICIONES
-            const leaderboard = Object.values(players).sort((a, b) => b.laps - a.laps);
-            if (leaderboard.length > 0) {
-                const topLaps = leaderboard[0].laps;
-                const startX = window.innerWidth - 220;
-                let startY = 60;
+    const finishLine = Bodies.rectangle(cx + 330, cy + 250, 40, 100, { 
+        isStatic: true, isSensor: true, label: 'finish', render: { fillStyle: 'transparent' }
+    });
+    const checkpoint = Bodies.rectangle(cx - 330, cy + 250, 40, 100, { 
+        isStatic: true, isSensor: true, label: 'checkpoint', render: { fillStyle: 'transparent' }
+    });
+    Composite.add(engine.world, [finishLine, checkpoint]);
 
-                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-                ctx.fillRect(startX - 10, 20, 200, leaderboard.length * 35 + 20);
+    socket.on('player_update', (data) => {
+        if (!players[data.id]) {		
+            const color = '#' + Math.floor(Math.random()*16777215).toString(16);
+            const playerCount = Object.keys(players).length;
+            const spawnX = (cx + 100) - (playerCount * 80); 
+            const spawnY = (cy + 250);
 
-                leaderboard.forEach((p, i) => {
-                    ctx.fillStyle = p.myColor;
-                    ctx.font = "bold 18px Arial";
-                    ctx.textAlign = "left";
-                    ctx.fillText(`P${i+1} ${p.playerId.substring(0,4)}`, startX, startY);
-                    ctx.fillText(`LAP: ${p.laps}`, startX + 100, startY);
-                    startY += 35;
+            players[data.id] = Bodies.rectangle(spawnX, spawnY, 60, 25, {
+                render: { fillStyle: color },
+                density: 0.1,
+                frictionAir: 0.01,
+                restitution: 0.2,
+                friction: 0.1,
+                label: 'car'
+            });
+
+            Body.setInertia(players[data.id], 500000); 
+
+            players[data.id].myColor = color;
+            players[data.id].playerId = data.id;
+            players[data.id].laps = 0;
+            players[data.id].passedCheckpoint = false;
+            players[data.id].isGas = false;
+            players[data.id].turnValue = 0;
+
+            Composite.add(engine.world, players[data.id]);
+        }
+
+        const car = players[data.id];
+        car.isGas = data.gas; 
+        car.turnValue = data.turn || 0; 
+    });
+
+    Events.on(engine, 'collisionStart', (event) => {
+        event.pairs.forEach((pair) => {
+            const { bodyA, bodyB } = pair;
+            const car = bodyA.label === 'car' ? bodyA : (bodyB.label === 'car' ? bodyB : null);
+            const sensor = bodyA.isSensor ? bodyA : (bodyB.isSensor ? bodyB : null);
+
+            if (car && sensor) {
+                if (sensor.label === 'checkpoint') {
+                    car.passedCheckpoint = true;
+                }
+                if (sensor.label === 'finish' && car.passedCheckpoint) {
+                    car.laps++;
+                    car.passedCheckpoint = false;
+                }
+            }
+            
+            // Corrección de choques con paredes
+            if (car && !bodyA.isSensor && !bodyB.isSensor) {
+                Body.setVelocity(car, { x: car.velocity.x * 0.1, y: car.velocity.y * 0.1 });
+                Body.setAngularVelocity(car, 0);
+            }
+        });
+    });
+
+    Events.on(render, 'afterRender', () => {
+        const ctx = render.context;
+        const celda = 10, columnasH = 2, filasH = 9; 
+		const metaX = cx + 330; 
+		const metaY = (cy + 250) - (filasH * celda / 2);
+
+		for (let f = 0; f < filasH; f++) {
+			for (let c = 0; c < columnasH; c++) {
+				ctx.fillStyle = (f + c) % 2 === 0 ? "#fff" : "#000";
+				ctx.fillRect(metaX + (c * celda), metaY + (f * celda), celda, celda);
+			}
+		}
+		ctx.fillStyle = "#e10600"; 
+		ctx.fillRect(metaX - 3, metaY, 3, filasH * celda);
+
+        const leaderboard = Object.values(players).sort((a, b) => b.laps - a.laps);
+        if (leaderboard.length > 0) {
+            const startX = window.innerWidth - 220;
+            let startY = 60;
+            ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+            ctx.fillRect(startX - 10, 20, 200, leaderboard.length * 35 + 20);
+
+            leaderboard.forEach((p, i) => {
+                ctx.fillStyle = p.myColor;
+                ctx.font = "bold 18px Arial";
+                ctx.textAlign = "left";
+                ctx.fillText(`P${i+1} ${p.playerId.substring(0,4)}`, startX, startY);
+                ctx.fillText(`LAP: ${p.laps}`, startX + 100, startY);
+                startY += 35;
+            });
+        }
+
+        Object.values(players).forEach(car => {
+            const { position, angle, myColor, isGas } = car;
+            ctx.save();
+            ctx.translate(position.x, position.y);
+            ctx.rotate(angle);
+            
+            ctx.fillStyle = '#111';
+            ctx.fillRect(12, -18, 10, 8);  ctx.fillRect(12, 10, 10, 8);
+            ctx.fillRect(-22, -20, 12, 10); ctx.fillRect(-22, 10, 12, 10);
+
+            ctx.fillStyle = myColor;
+            ctx.beginPath();
+            ctx.moveTo(25, 0); ctx.lineTo(5, -7); ctx.lineTo(-25, -9);
+            ctx.lineTo(-25, 9); ctx.lineTo(5, 7); ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-10, -4, 12, 8);
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#111'; ctx.fillRect(20, -14, 3, 28); ctx.fillRect(-32, -16, 8, 32);
+
+            if (isGas) {
+                ctx.fillStyle = '#ff4400';
+                ctx.beginPath(); ctx.moveTo(-33, 0); ctx.lineTo(-50, -6); ctx.lineTo(-50, 6); ctx.fill();
+            }
+            ctx.restore();
+        });
+    });
+
+    socket.on('player_disconnected', (id) => {
+        if (players[id]) { Composite.remove(engine.world, players[id]); delete players[id]; }
+    });
+		
+   // --- LÓGICA DE FÍSICA (Antes de cada actualización del motor) ---
+// --- LÓGICA DE FÍSICA (Antes de cada actualización del motor) ---
+    // --- LÓGICA DE FÍSICA (Actualizada) ---
+    Events.on(engine, 'beforeUpdate', () => {
+        Object.values(players).forEach(car => {
+            const angle = car.angle;
+            const forwardVector = { x: Math.cos(angle), y: Math.sin(angle) };
+            const rightVector = { x: Math.cos(angle + Math.PI / 2), y: Math.sin(angle + Math.PI / 2) };
+
+            // 1. CÁLCULO DE VELOCIDAD LINEAL ACTUAL
+            const speed = Math.sqrt(car.velocity.x ** 2 + car.velocity.y ** 2);
+
+            // 2. MATAR VELOCIDAD LATERAL (Agarre)
+            const lateralVel = car.velocity.x * rightVector.x + car.velocity.y * rightVector.y;
+            const driftControl = 0.96; 
+            Body.setVelocity(car, {
+                x: car.velocity.x - (rightVector.x * lateralVel * driftControl),
+                y: car.velocity.y - (rightVector.y * lateralVel * driftControl)
+            });
+
+            // 3. ACELERACIÓN LINEAL
+            if (car.isGas) {
+                const accelForce = 0.035; // Un toque más de fuerza
+                Body.applyForce(car, car.position, {
+                    x: forwardVector.x * accelForce,
+                    y: forwardVector.y * accelForce
                 });
             }
 
-            // 3. DIBUJAR AUTOS (Diseño Monoplaza Clásico)
-Object.values(players).forEach(car => {
-    const { position, angle, myColor, isGas } = car;
-    ctx.save();
-    ctx.translate(position.x, position.y);
-    ctx.rotate(angle);
+            // 4. DIRECCIÓN (Solución al giro liviano)
+            if (car.turnValue !== 0) {
+                // El giro se escala con la velocidad (speed / 10). 
+                // Si el auto está quieto, gira casi nada. A más velocidad, dobla más.
+                const turnFactor = Math.min(speed / 8, 1.2); 
+                const turnSpeed = 0.06 * turnFactor; 
+                Body.setAngularVelocity(car, car.turnValue * turnSpeed);
+            } else {
+                // Si no se toca el mando, frenamos la rotación residual
+                Body.setAngularVelocity(car, car.angularVelocity * 0.9);
+            }
 
-    const brillo = isGas ? 12 : 4;
-
-    // --- NEUMÁTICOS (Anchos y por fuera de la carrocería) ---
-    ctx.fillStyle = '#111';
-    ctx.fillRect(12, -18, 10, 8);  // Delantero Izq
-    ctx.fillRect(12, 10, 10, 8);   // Delantero Der
-    ctx.fillRect(-22, -20, 12, 10); // Trasero Izq (Más ancho)
-    ctx.fillRect(-22, 10, 12, 10);  // Trasero Der (Más ancho)
-
-    // --- CARROCERÍA (Forma de flecha/botella) ---
-    ctx.fillStyle = myColor;
-    // Nariz y chasis central
-    ctx.beginPath();
-    ctx.moveTo(25, 0);       // Punta de la nariz
-    ctx.lineTo(5, -7);       // Ensancha hacia el cockpit
-    ctx.lineTo(-25, -9);     // Parte trasera
-    ctx.lineTo(-25, 9);
-    ctx.lineTo(5, 7);
-    ctx.closePath();
-    ctx.fill();
-
-    // Toma de aire (Airbox) arriba del motor
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(-10, -4, 12, 8);
-
-    // Casco del piloto (Círculo pequeño)
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(0, 0, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // --- ALERONES ---
-    ctx.fillStyle = '#111';
-    ctx.fillRect(20, -14, 3, 28);  // Alerón delantero
-    ctx.fillRect(-32, -16, 8, 32); // Alerón trasero grande
-
-// --- SISTEMA DE 4 LUCES (Reposicionadas) ---
-    // Delanteras (Ámbar) - Ahora inmediatamente detrás del alerón delantero
-    ctx.fillStyle = '#ffaa00'; 
-    ctx.shadowBlur = brillo;
-    ctx.shadowColor = '#ffaa00';
-    ctx.fillRect(18, -6, 4, 2); // Posición X movida a 18
-    ctx.fillRect(18, 4, 4, 2);  // Posición X movida a 18
-
-    // Traseras (Rojas) - Se mantienen en la parte posterior
-    ctx.fillStyle = '#ff0000'; 
-    ctx.shadowBlur = brillo;
-    ctx.shadowColor = '#ff0000';
-    ctx.fillRect(-25, -8, 4, 2); 
-    ctx.fillRect(-25, 6, 4, 2); 
-
-    ctx.shadowBlur = 0; // Limpiar brillo
-
-    ctx.shadowBlur = 0; // Limpiar brillo
-
-    // --- FUEGO DEL ESCAPE ---
-    if (isGas) {
-        ctx.fillStyle = '#ff4400';
-        ctx.beginPath();
-        ctx.moveTo(-33, 0);
-        ctx.lineTo(-50, -6);
-        ctx.lineTo(-50, 6);
-        ctx.fill();
-    }
-
-    ctx.restore();
-});
+            // 5. VELOCIDAD MÁXIMA (Fricción de rodamiento)
+            // 0.995 permite que el auto siga acelerando mucho más antes de frenarse por el aire
+            const topSpeedControl = 0.993; 
+            Body.setVelocity(car, {
+                x: car.velocity.x * topSpeedControl,
+                y: car.velocity.y * topSpeedControl
+            });
         });
-
-        socket.on('player_disconnected', (id) => {
-            if (players[id]) { Composite.remove(engine.world, players[id]); delete players[id]; }
-        });
-		
-		
-    </script>
-	
+    });
+</script>
 </body>
-
 </html>

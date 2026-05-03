@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "nodemon --exec ts-node src/server.ts"
+    "dev": "nodemon --exec \"node --loader ts-node/esm\" src/server.ts"
   },
   "dependencies": {
     "express": "^4.19.2",

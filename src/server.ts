@@ -13,61 +13,42 @@ const io = new Server(httpServer, {
     cors: { origin: "*" }
 });
 
-// Servimos archivos estáticos
-// Asegúrate de que index.html y tv.html estén en una carpeta llamada 'public'
 app.use(express.static(path.join(__dirname, '../public')));
 
-
-// Agregá esta variable arriba del io.on
 let hostId: string | null = null;
 
 io.on('connection', (socket) => {
-    console.log('Conectado:', socket.id);
+    console.log('Nuevo dispositivo conectado:', socket.id);
     
-    // Si no hay host, el primero que entra toma el mando
+    // Asignar Host
     if (!hostId) {
         hostId = socket.id;
         socket.emit('is_host', true);
     }
 
+    // Cambiamos broadcast.emit por io.emit para que la TV 
+    // reciba SIEMPRE la actualización, sin importar quién la mande.
     socket.on('drive', (data) => {
-        socket.broadcast.emit('player_update', { id: socket.id, ...data });
+        io.emit('player_update', { id: socket.id, ...data });
     });
 
-    // Escuchar el pedido de reinicio
     socket.on('request_restart', () => {
         if (socket.id === hostId) {
-            io.emit('start_countdown'); // Le avisamos a todos (especialmente a la TV)
+            io.emit('start_countdown');
         }
     });
 
     socket.on('disconnect', () => {
+        console.log('Desconectado:', socket.id);
         io.emit('player_disconnected', socket.id);
         if (socket.id === hostId) {
             hostId = null;
-            // Opcional: Podrías buscar otro socket para pasarle el host, 
-            // pero para simplificar, el próximo que conecte será el host.
+            // Al desconectarse el host, el próximo mensaje 'drive' de otro podría reclamarlo
         }
     });
 });
 
-io.on('connection', (socket) => {
-    console.log('Conectado:', socket.id);
-    
-    socket.on('drive', (data) => {
-        // Enviamos la info a la TV y otros jugadores
-        socket.broadcast.emit('player_update', { id: socket.id, ...data });
-    });
-
-    socket.on('disconnect', () => {
-        io.emit('player_disconnected', socket.id);
-        console.log('Desconectado:', socket.id);
-    });
-});
-
-// Render asigna el puerto automáticamente en process.env.PORT
 const PORT = process.env.PORT || 3000;
-
 httpServer.listen(PORT, () => {
     console.log(`>>> Servidor corriendo en puerto: ${PORT}`);
 });

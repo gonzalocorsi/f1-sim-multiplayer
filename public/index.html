@@ -1,102 +1,137 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mando de Carreras</title>
+    <title>Mando de Carreras - F1 Pro</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; overflow: hidden; margin: 0; padding: 20px; user-select: none; }
-        .btn { width: 90%; height: 120px; margin: 10px auto; border: 5px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; border-radius: 20px; }
-        #accel { background: #1a1a1a; }
+        body { 
+            background: #000; color: #fff; font-family: sans-serif; 
+            text-align: center; overflow: hidden; margin: 0; padding: 0; 
+            user-select: none; -webkit-user-select: none;
+            width: 100vw; height: 100vh;
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        /* Forzamos visualmente a que el usuario entienda que debe girar el móvil */
+        #gamepad { display: none; width: 100%; height: 100%; }
+        
+        .btn { 
+            width: 80%; height: 60%; margin: 0 auto; border: 5px solid #fff; 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 40px; font-weight: bold; border-radius: 25px; 
+            transition: background 0.1s;
+            touch-action: none;
+        }
+        #accel { background: #e10600; text-shadow: 2px 2px #000; }
         #accel.active { background: #fff; color: #000; }
-        #start-btn { background: #fff; color: #000; height: 60px; font-size: 18px; }
-        #debug { color: #888; font-family: monospace; font-size: 14px; }
-		#restart-btn { 
-    display: none; position: fixed; bottom: 10px; right: 10px; 
-    background: #e10600; color: white; border: none; padding: 10px; 
-    border-radius: 5px; font-size: 12px; font-weight: bold; z-index: 1000;
-}
+        
+        #start-btn { 
+            background: #fff; color: #000; height: 80px; font-size: 20px; 
+            width: 80%; margin: 0 auto; cursor: pointer;
+        }
+        
+        #debug { color: #555; font-family: monospace; font-size: 14px; position: absolute; bottom: 10px; width: 100%; }
+        
+        #restart-btn { 
+            display: none; position: fixed; top: 15px; right: 15px; 
+            background: #444; color: white; border: 1px solid #777; padding: 10px; 
+            border-radius: 8px; font-size: 10px; z-index: 1000;
+        }
     </style>
 </head>
 <body>
-    <div id="start-btn" class="btn">TOCÁ ACÁ PARA EMPEZAR</div>
+
+    <div id="start-btn" class="btn">TOCÁ PARA CONECTAR Y GIRÁ EL CELULAR</div>
     
-    <div id="gamepad" style="display: none;">
-        <h1>CONECTADO</h1>
+    <div id="gamepad">
+        <h2 style="color: #e10600; margin: 10px 0;">F1 LIVE MODE (HORIZONTAL)</h2>
         <div id="accel" class="btn">ACELERAR</div>
-        <p id="debug">Incliná para doblar</p>
+        <p id="debug">Calibrando volante...</p>
     </div>
-<button id="restart-btn">REINICIAR LARGADA</button>
+
+    <button id="restart-btn">REINICIAR</button>
+
     <script>
         const socket = io();
         const debug = document.getElementById('debug');
         const startBtn = document.getElementById('start-btn');
         const gamepad = document.getElementById('gamepad');
         const accelBtn = document.getElementById('accel');
+        const restartBtn = document.getElementById('restart-btn');
+        
         let isGas = false;
 
-        // ACTIVACIÓN
         startBtn.onclick = function() {
-    // 1. Pedir permiso inmediatamente (sin esperas)
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-            .then(permissionState => {
-                if (permissionState === 'granted') {
-                    activarSensores();
-                } else {
-                    alert("Permiso denegado. Entrá a Ajustes > Safari > Acceso a movimiento y orientación.");
-                }
-            })
-            .catch(console.error);
-    } else {
-        // Si no es iOS o no necesita permiso, activamos directo
-        activarSensores();
-    }
-};
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            activarSensores();
+                        } else {
+                            alert("Permiso denegado.");
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                activarSensores();
+            }
+        };
 
-function activarSensores() {
-    startBtn.style.display = 'none';
-    gamepad.style.display = 'block';
+        function activarSensores() {
+            startBtn.style.display = 'none';
+            gamepad.style.display = 'block';
 
-    // Detectamos si es iPhone/iPad/iPod
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            window.addEventListener('devicemotion', (event) => {
+                // EXPLICACIÓN MODO HORIZONTAL:
+                // Al girar el celular, el eje Y del acelerómetro mide la inclinación lateral.
+                let tilt = event.accelerationIncludingGravity.y || 0;
+                
+                // En Android e iOS el eje Y suele estar invertido entre sí para este propósito
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                let finalTilt = isIOS ? -tilt : tilt; 
 
-    window.addEventListener('devicemotion', (event) => {
-        let accelX = event.accelerationIncludingGravity.x || 0;
+                // NORMALIZACIÓN:
+                // Un valor de 5-6 ya es una inclinación fuerte. Dividimos para obtener el rango -1 a 1.
+                let turnValue = finalTilt / 6;
+
+                // Zona muerta (Deadzone) para evitar que el auto vibre en el centro
+                if (Math.abs(turnValue) < 0.1) turnValue = 0;
+
+                // Limitar rango
+                if (turnValue > 1) turnValue = 1;
+                if (turnValue < -1) turnValue = -1;
+
+                socket.emit('drive', {
+                    turn: turnValue, 
+                    gas: isGas
+                });
+
+                debug.innerText = `VOLANTE: ${turnValue > 0 ? 'DER' : 'IZQ'} ${Math.abs(turnValue * 100).toFixed(0)}%`;
+            }, true);
+        }
+
+        // --- BOTÓN ACELERADOR ---
+        accelBtn.addEventListener('touchstart', (e) => { 
+            e.preventDefault(); 
+            isGas = true; 
+            accelBtn.classList.add('active'); 
+        });
+        accelBtn.addEventListener('touchend', (e) => { 
+            e.preventDefault(); 
+            isGas = false; 
+            accelBtn.classList.remove('active'); 
+        });
         
-        // REGLA DE ORO: 
-        // En Android, inclinación a la derecha suele ser negativo.
-        // En iOS, suele ser positivo (o viceversa según el modo).
-        // Si sigue invertido, cambiá el 'isIOS ? -accelX : accelX'
-        let finalX = isIOS ? accelX : -accelX; 
-
-        let turnValue = finalX / 5; 
-
-        socket.emit('drive', {
-            turn: turnValue, 
-            gas: isGas
+        socket.on('is_host', (isHost) => {
+            if(isHost) restartBtn.style.display = 'block';
         });
 
-        debug.innerText = `OS: ${isIOS ? 'iOS' : 'Android'} | X: ${Math.round(accelX)}`;
-    }, true);
-}
+        restartBtn.onclick = () => {
+            if (confirm("¿Reiniciar carrera?")) socket.emit('request_restart');
+        };
 
-        // BOTÓN GAS
-        accelBtn.ontouchstart = (e) => { e.preventDefault(); isGas = true; accelBtn.classList.add('active'); };
-        accelBtn.ontouchend = (e) => { e.preventDefault(); isGas = false; accelBtn.classList.remove('active'); };
-		
-		const restartBtn = document.getElementById('restart-btn');
-
-socket.on('is_host', (isHost) => {
-    if(isHost) restartBtn.style.display = 'block';
-});
-
-restartBtn.onclick = () => {
-    if (confirm("¿Reiniciar la carrera para todos?")) {
-        socket.emit('request_restart');
-    }
-};
+        // Evitar que el navegador intente hacer scroll o zoom al jugar
+        document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
     </script>
-	
 </body>
 </html>
