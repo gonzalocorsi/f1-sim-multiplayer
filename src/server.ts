@@ -3,52 +3,155 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import Matter from 'matter-js';
+import { Car } from './Car.js';
+import { PlayerInput } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-    cors: { origin: "*" }
-});
+const io = new Server(httpServer, { cors: { origin: "*" } });
 
+// Servir archivos estáticos
 app.use(express.static(path.join(__dirname, '../public')));
 
-let hostId: string | null = null;
+app.get('/tv', (req, res) => res.sendFile(path.join(__dirname, '../public', 'tv.html')));
+app.get('/mando', (req, res) => res.sendFile(path.join(__dirname, '../public', 'index.html')));
 
+// --- MOTOR FÍSICO ---
+const { Engine, Bodies, Composite } = Matter;
+const engine = Engine.create({ gravity: { x: 0, y: 0 } });
+
+// --- CONFIGURACIÓN DEL CIRCUITO ---
+const WORLD = { width: 1600, height: 900 };
+const TRACK = {
+    width: 1000,
+    height: 400,
+    x: 800,
+    y: 450,        // sigue siendo el centro
+    thickness: 150, // ← era 250, ahora coincide con roadWidth del canvas
+    radius: 100
+};
+
+const trackWalls = [
+    Bodies.rectangle(800, 0, 1600, 40, { isStatic: true, label: 'wall' }),
+    Bodies.rectangle(800, 900, 1600, 40, { isStatic: true, label: 'wall' }),
+    Bodies.rectangle(0, 450, 40, 900, { isStatic: true, label: 'wall' }),
+    Bodies.rectangle(1600, 450, 40, 900, { isStatic: true, label: 'wall' }),
+    Bodies.rectangle(TRACK.x, TRACK.y, TRACK.width - TRACK.thickness, TRACK.height - TRACK.thickness, { 
+        isStatic: true, 
+        isSensor: true, 
+        chamfer: { radius: TRACK.radius - 50 },  // ← era TRACK.radius: 30, incorrecto
+        label: 'grass_center'
+    })
+
+];
+Composite.add(engine.world, trackWalls);
+// --- BARRERA DE RUEDAS EN EL CENTRO ---
+const tireBarrier: Matter.Body[] = [];
+const barrierY = TRACK.y; // Centro vertical del mundo (450)
+const barrierStartX = TRACK.x - 150; // Empieza 150px a la izquierda del centro
+const barrierEndX = TRACK.x + 150;   // Termina 150px a la derecha
+const tireRadius = 18;
+
+for (let x = barrierStartX; x <= barrierEndX; x += tireRadius * 2) {
+    const tire = Bodies.circle(x, barrierY, tireRadius, {
+        isStatic: true,
+        restitution: 0.5,
+        friction: 0.8,
+        label: 'tire_barrier'
+    });
+    tireBarrier.push(tire);
+}
+Composite.add(engine.world, tireBarrier);
+
+const players: Map<string, Car> = new Map();
+
+// --- SOCKETS ---
 io.on('connection', (socket) => {
-    console.log('Nuevo dispositivo conectado:', socket.id);
-    
-    // Asignar Host
-    if (!hostId) {
-        hostId = socket.id;
-        socket.emit('is_host', true);
-    }
+    console.log('Conectado:', socket.id);
 
-    // Cambiamos broadcast.emit por io.emit para que la TV 
-    // reciba SIEMPRE la actualización, sin importar quién la mande.
-    socket.on('drive', (data) => {
-        io.emit('player_update', { id: socket.id, ...data });
+    socket.on('register_player', () => {
+        if (players.has(socket.id)) return;
+        
+        // Creamos la instancia de la clase Car (Asegúrate de que Car.ts acepte estos parámetros)
+const newCar = new Car(
+    socket.id,
+    '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+    800,
+    590
+);
+
+
+        
+        players.set(socket.id, newCar);
+        Composite.add(engine.world, newCar.body);
     });
 
-    socket.on('request_restart', () => {
-        if (socket.id === hostId) {
-            io.emit('start_countdown');
+    socket.on('drive', (data: PlayerInput) => {
+        const car = players.get(socket.id);
+        if (car) {
+            car.isGas = data.gas;
+            car.turnValue = data.turn || 0;
+            car.isTurbo = data.turbo || false;
+			car.isReverse = data.reverse || false;
         }
     });
 
     socket.on('disconnect', () => {
-        console.log('Desconectado:', socket.id);
-        io.emit('player_disconnected', socket.id);
-        if (socket.id === hostId) {
-            hostId = null;
-            // Al desconectarse el host, el próximo mensaje 'drive' de otro podría reclamarlo
+        const car = players.get(socket.id);
+        if (car) {
+            Composite.remove(engine.world, car.body);
+            players.delete(socket.id);
         }
     });
 });
 
-const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
-    console.log(`>>> Servidor corriendo en puerto: ${PORT}`);
+setInterval(() => {
+    Engine.update(engine, 1000 / 60);
+    const playerList = Array.from(players.values());
+
+   playerList.forEach((car) => {
+    const px = car.body.position.x;
+    const py = car.body.position.y;
+    const onOuterGrass = px < 225  || px > 1375  || py < 175  || py > 725;
+    const collision = Matter.Collision.collides(car.body, trackWalls[4]); // ← solo una vez
+    car.isOnGrass = collision !== null || onOuterGrass;
+
+    car.update();
+    car.checkLap();
+
+    io.to(car.id).emit('telemetry', {
+        tireHealth: Math.floor(car.tireHealth * 100),
+        energy: Math.floor(car.energy * 100),
+        speed: Math.floor(car.body.speed * 20),
+        isOnGrass: car.isOnGrass
+    });
 });
+
+    io.emit('state_update', {
+        tireBarrier: tireBarrier.map(t => ({ x: t.position.x, y: t.position.y })),
+        players: playerList.map(car => {
+            const angle = car.body.angle;
+            const right = { x: Math.cos(angle + Math.PI / 2), y: Math.sin(angle + Math.PI / 2) };
+            const lateralVel = Math.abs(car.body.velocity.x * right.x + car.body.velocity.y * right.y);
+            return {
+                id: car.id,
+                x: car.body.position.x,
+                y: car.body.position.y,
+                angle: angle,
+                color: car.color,
+                isTurbo: car.isTurbo,
+                laps: car.laps,
+                isOnGrass: car.isOnGrass,
+                speed: car.body.speed,
+                isDrifting: (car.isOnGrass && (lateralVel > 1 || car.body.speed > 2))
+            };
+        })
+    });
+}, 1000 / 60);
+
+const PORT = 3000;
+httpServer.listen(PORT, () => console.log(`>>> F1 Engine (TS) en puerto: ${PORT}`));

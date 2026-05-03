@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="/socket.io/socket.io.js"></script>
     <style>
+	
         body { 
             background: #000; color: #fff; font-family: sans-serif; 
             text-align: center; overflow: hidden; margin: 0; padding: 0; 
@@ -12,8 +13,7 @@
             width: 100vw; height: 100vh;
             display: flex; flex-direction: column; justify-content: center;
         }
-        /* Forzamos visualmente a que el usuario entienda que debe girar el móvil */
-        #gamepad { display: none; width: 100%; height: 100%; }
+        #gamepad { display: none; width: 100%; height: 100%; flex-direction: column; justify-content: center; }
         
         .btn { 
             width: 80%; height: 60%; margin: 0 auto; border: 5px solid #fff; 
@@ -27,7 +27,7 @@
         
         #start-btn { 
             background: #fff; color: #000; height: 80px; font-size: 20px; 
-            width: 80%; margin: 0 auto; cursor: pointer;
+            width: 80%; margin: 0 auto; cursor: pointer; display: flex;
         }
         
         #debug { color: #555; font-family: monospace; font-size: 14px; position: absolute; bottom: 10px; width: 100%; }
@@ -37,39 +37,105 @@
             background: #444; color: white; border: 1px solid #777; padding: 10px; 
             border-radius: 8px; font-size: 10px; z-index: 1000;
         }
+		/* Efecto de vibración visual cuando aceleras */
+    .btn.active { 
+        transform: scale(0.98); 
+        box-shadow: 0 0 20px #e10600;
+    }
+    /* Indicador de dirección */
+    #steering-indicator {
+        width: 100px; height: 10px; background: #333;
+        margin: 20px auto; border-radius: 5px; position: relative;
+    }
+    #dot {
+        width: 20px; height: 20px; background: #fff;
+        border-radius: 50%; position: absolute; top: -5px; left: 40px;
+        transition: left 0.1s;
+    }
+	#turbo { background: #00a0ff; height: 30%; font-size: 20px; margin-top: 10px; }
+    #turbo.active { background: #fff; color: #00a0ff; }
+	#telemetry-display {
+    padding: 10px;
+    background: #111;
+    border-radius: 10px;
+    margin-bottom: 15px;
+}
+.stat { display: flex; align-items: center; margin: 5px 0; font-size: 12px; }
+.stat span { width: 50px; text-align: left; }
+.bar-container { flex-grow: 1; height: 10px; background: #333; border-radius: 5px; overflow: hidden; }
+.bar { height: 100%; transition: width 0.2s; }
+#tire-bar { background: #fff; width: 100%; } /* Neumáticos blancos */
+#ers-bar { background: #efff00; width: 0%; }  /* ERS amarillo */
+#speedometer { font-size: 24px; font-weight: bold; font-family: monospace; color: #00ff00; }
     </style>
 </head>
 <body>
 
-    <div id="start-btn" class="btn">TOCÁ PARA CONECTAR Y GIRÁ EL CELULAR</div>
+    <div id="start-btn" class="btn">TOCÁ PARA CONECTAR</div>
     
     <div id="gamepad">
-        <h2 style="color: #e10600; margin: 10px 0;">F1 LIVE MODE (HORIZONTAL)</h2>
+        <h2 style="color: #e10600; margin: 10px 0;">F1 LIVE MODE</h2>
         <div id="accel" class="btn">ACELERAR</div>
         <p id="debug">Calibrando volante...</p>
+		<div id="steering-indicator"><div id="dot"></div></div>	
+		<div id="turbo" class="btn">DRS / TURBO</div>
+		<!-- Indicador de marcha atrás -->
+<div style="display:flex; align-items:center; gap:10px; margin: 8px auto; width:80%;">
+    <span style="font-size:11px; color:#555; width:50px;">REVERSE</span>
+    <div id="reverse-indicator" style="flex:1; height:14px; background:#222; border-radius:7px; overflow:hidden; border:1px solid #444;">
+        <div id="reverse-fill" style="height:100%; width:0%; background:#e10600; border-radius:7px; transition:height 0.05s; transform:rotate(180deg); transform-origin:bottom;"></div>
     </div>
+    <span id="reverse-label" style="font-size:11px; color:#555; width:24px;">OFF</span>
+</div>
+    </div>
+	<div id="telemetry-display">
+    <div class="stat">
+        <span>TYRES</span>
+        <div class="bar-container"><div id="tire-bar" class="bar"></div></div>
+    </div>
+    <div class="stat">
+        <span>ERS</span>
+        <div class="bar-container"><div id="ers-bar" class="bar"></div></div>
+    </div>
+    <div id="speedometer">0 KM/H</div>
+</div>
 
     <button id="restart-btn">REINICIAR</button>
 
     <script>
+	
+        // 1. PRIMERO inicializamos el socket
         const socket = io();
+        
         const debug = document.getElementById('debug');
         const startBtn = document.getElementById('start-btn');
         const gamepad = document.getElementById('gamepad');
         const accelBtn = document.getElementById('accel');
         const restartBtn = document.getElementById('restart-btn');
-        
+			
         let isGas = false;
+        let sensorActivo = false;
 
+        // 2. Definimos los eventos del socket
+        socket.on('connect', () => {
+            console.log("Conectado con ID:", socket.id);
+            // No registramos aquí todavía, esperamos al toque del usuario por los permisos de sensores
+        });
+
+        socket.on('is_host', (isHost) => {
+            if(isHost) restartBtn.style.display = 'block';
+        });
+
+        // 3. Función para iniciar sensores y registro
         startBtn.onclick = function() {
+            // Registrar al jugador en el servidor
+            socket.emit('register_player');
+
+            // Pedir permiso para sensores (necesario en iOS y Chrome moderno)
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            activarSensores();
-                        } else {
-                            alert("Permiso denegado.");
-                        }
+                        if (permissionState === 'granted') activarSensores();
                     })
                     .catch(console.error);
             } else {
@@ -78,39 +144,33 @@
         };
 
         function activarSensores() {
+            sensorActivo = true;
             startBtn.style.display = 'none';
-            gamepad.style.display = 'block';
+            gamepad.style.display = 'flex';
 
             window.addEventListener('devicemotion', (event) => {
-                // EXPLICACIÓN MODO HORIZONTAL:
-                // Al girar el celular, el eje Y del acelerómetro mide la inclinación lateral.
                 let tilt = event.accelerationIncludingGravity.y || 0;
-                
-                // En Android e iOS el eje Y suele estar invertido entre sí para este propósito
                 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
                 let finalTilt = isIOS ? -tilt : tilt; 
 
-                // NORMALIZACIÓN:
-                // Un valor de 5-6 ya es una inclinación fuerte. Dividimos para obtener el rango -1 a 1.
                 let turnValue = finalTilt / 6;
-
-                // Zona muerta (Deadzone) para evitar que el auto vibre en el centro
                 if (Math.abs(turnValue) < 0.1) turnValue = 0;
-
-                // Limitar rango
                 if (turnValue > 1) turnValue = 1;
                 if (turnValue < -1) turnValue = -1;
 
-                socket.emit('drive', {
-                    turn: turnValue, 
-                    gas: isGas
-                });
+				socket.emit('drive', { turn: turnValue, gas: isGas, turbo: isTurbo, reverse: isReverse });
+                debug.innerText = `GIRO: ${Math.abs(turnValue * 100).toFixed(0)}%`;
+            // En la función activarSensores(), actualiza el visualizador del mando:
+			const dot = document.getElementById('dot');
+			// ... dentro del listener de devicemotion ...
+			let visualPos = 40 + (turnValue * 40); // Mueve el punto blanco de 0 a 80px
+			dot.style.left = visualPos + 'px';}, true);
+			
 
-                debug.innerText = `VOLANTE: ${turnValue > 0 ? 'DER' : 'IZQ'} ${Math.abs(turnValue * 100).toFixed(0)}%`;
-            }, true);
+			
         }
 
-        // --- BOTÓN ACELERADOR ---
+        // Eventos de aceleración
         accelBtn.addEventListener('touchstart', (e) => { 
             e.preventDefault(); 
             isGas = true; 
@@ -121,17 +181,82 @@
             isGas = false; 
             accelBtn.classList.remove('active'); 
         });
-        
-        socket.on('is_host', (isHost) => {
-            if(isHost) restartBtn.style.display = 'block';
-        });
 
         restartBtn.onclick = () => {
             if (confirm("¿Reiniciar carrera?")) socket.emit('request_restart');
         };
 
-        // Evitar que el navegador intente hacer scroll o zoom al jugar
-        document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+       document.addEventListener('touchmove', (e) => {
+    // Solo prevenir default en los botones, no en el resto
+    if (e.target === accelBtn || e.target === turboBtn) {
+        e.preventDefault();
+    }
+}, { passive: false });
+		let isTurbo = false;
+const turboBtn = document.getElementById('turbo');
+
+turboBtn.addEventListener('touchstart', (e) => { 
+    isTurbo = true; 
+    turboBtn.classList.add('active'); 
+});
+turboBtn.addEventListener('touchend', (e) => { 
+    isTurbo = false; 
+    turboBtn.classList.remove('active'); 
+});
+const tireBar = document.getElementById('tire-bar');
+const ersBar = document.getElementById('ers-bar');
+const speedo = document.getElementById('speedometer');
+
+
+socket.on('telemetry', (data) => {
+    // Actualizar barras visuales
+    tireBar.style.width = data.tireHealth + '%';
+    ersBar.style.width = data.energy + '%';
+    speedo.innerText = data.speed + " KM/H";
+
+    // Feedback visual si se acaban las gomas (rojo)
+    if (data.tireHealth < 20) tireBar.style.background = "#e10600";
+});
+// --- MARCHA ATRÁS CON SWIPE HORIZONTAL ---
+let isReverse = false;
+let swipeStartX = 0;
+let swipePull = 0;
+const SWIPE_THRESHOLD = 100;
+
+const reverseFill = document.getElementById('reverse-fill');
+
+document.addEventListener('touchstart', (e) => {
+    const target = e.target;
+    if (target === accelBtn || target === turboBtn) return;
+    swipeStartX = e.touches[0].clientX;
+    swipePull = 0;
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+    const target = e.target;
+    if (target === accelBtn || target === turboBtn) return;
+
+    const deltaX = swipeStartX - e.touches[0].clientX; // derecha a izquierda = positivo
+    if (deltaX > 0) {
+        swipePull = Math.min(deltaX / SWIPE_THRESHOLD, 1);
+        reverseFill.style.width = (swipePull * 100) + '%';
+    } else {
+        swipePull = 0;
+        reverseFill.style.width = '0%';
+    }
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+    if (swipePull >= 1) {
+        isReverse = !isReverse;
+        if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+        document.getElementById('reverse-label').innerText = isReverse ? 'ON' : 'OFF';
+        document.getElementById('reverse-label').style.color = isReverse ? '#e10600' : '#555';
+    }
+    swipePull = 0;
+    reverseFill.style.width = '0%';
+    swipeStartX = 0;
+});
     </script>
 </body>
 </html>
