@@ -31,7 +31,12 @@ export class Car {
         const forward = { x: Math.cos(angle), y: Math.sin(angle) };
         const right = { x: Math.cos(angle + Math.PI / 2), y: Math.sin(angle + Math.PI / 2) };
 
-
+// Dentro de update(), al principio o después de calcular speed:
+if (!this.isGas && !this.isReverse && speed < 0.2) {
+    Body.setVelocity(this.body, { x: 0, y: 0 });
+    Body.setAngularVelocity(this.body, 0);
+    return; // Salimos del update para que no calcule grip ni fuerzas
+}
        // --- LÓGICA DE GRIP SEGÚN SUPERFICIE ---
         let baseGrip = 0.98; // Grip en asfalto
         let traction = 1.0;
@@ -41,8 +46,9 @@ export class Car {
             traction = 0.4;  // Pierde potencia de aceleración
             this.tireHealth -= 0.0005; // El pasto/tierra ensucia y gasta
         }
-
-       const currentGrip = baseGrip * this.tireHealth;
+this.tireHealth = Math.max(0, this.tireHealth);
+const performanceFactor = 0.8 + (this.tireHealth * 0.2);
+		const currentGrip = Math.max(0.05, baseGrip * this.tireHealth);
         const lateralVel = velocity.x * right.x + velocity.y * right.y;
 		// 1. Calculamos cuánto de nuestra velocidad actual es lateral (el derrape)
 const lateralVelX = right.x * (velocity.x * right.x + velocity.y * right.y);
@@ -61,6 +67,14 @@ const gripFactor = 1 - currentGrip;
     x: forwardVelX + (lateralVelX * gripFactor),
     y: forwardVelY + (lateralVelY * gripFactor)
 });
+const MAX_SPEED = 15; // Ajustá este valor a tu gusto
+if (speed > MAX_SPEED) {
+    const scale = MAX_SPEED / speed;
+    Body.setVelocity(this.body, {
+        x: this.body.velocity.x * scale,
+        y: this.body.velocity.y * scale
+    });
+}
 
         // --- Lógica de Energía (ERS) ---
 if (this.isGas && this.isTurbo && this.energy > 0) {
@@ -72,7 +86,7 @@ if (this.energy <= 0) this.isTurbo = false;
 
        // --- ACELERACIÓN (Afectada por la tracción del pasto) ---
 if (this.isGas) {
-    const power = ((this.isTurbo && this.energy > 0) ? 0.065 : 0.025) * traction;
+    const power = ((this.isTurbo && this.energy > 0) ? 0.065 : 0.025) * traction* performanceFactor;
     Body.applyForce(this.body, this.body.position, {
         x: Math.cos(angle) * power,
         y: Math.sin(angle) * power
