@@ -82,6 +82,52 @@
     });
 
     // 4. FUNCIONES DE DIBUJO
+	
+	function drawGridMarks() {
+    const GRID_START_X = 740;
+    const GRID_START_Y = 610;
+    const OFFSET_X = -100;
+    const OFFSET_Y = 80;
+    const MAX_SLOTS = 8; // Dibujamos marcas para 10 autos
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)"; // Blanco semi-transparente
+    ctx.lineWidth = 3;
+
+    for (let i = 0; i < MAX_SLOTS; i++) {
+        const row = Math.floor(i / 2);
+        const col = i % 2;
+        
+        const x = GRID_START_X + (row * OFFSET_X);
+        const y = GRID_START_Y + (col * OFFSET_Y);
+
+        // Dibujar el bracket "]" (orientado hacia la izquierda porque los autos miran hacia allá)
+        // La trompa del auto encaja en la parte abierta del bracket
+        const size = 30; // Largo de la marca
+        const wing = 15; // Largo de las pestañas
+
+        ctx.beginPath();
+        // Línea vertical del bracket (atrás de la trompa)
+        ctx.moveTo(x + 35, y - wing); 
+        ctx.lineTo(x + 35, y + wing);
+        
+        // Pestaña superior
+        ctx.moveTo(x + 35, y - wing);
+        ctx.lineTo(x + 15, y - wing);
+        
+        // Pestaña inferior
+        ctx.moveTo(x + 35, y + wing);
+        ctx.lineTo(x + 15, y + wing);
+        
+        ctx.stroke();
+
+        // Opcional: Número de posición tenue
+        ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+        ctx.font = "bold 12px Arial";
+        ctx.fillText(i + 1, x + 40, y + 5);
+    }
+    ctx.restore();
+}
 function drawTrack() {
     const trackW = 1000, trackH = 400;
     const trackX = (worldWidth - trackW) / 2;
@@ -352,6 +398,7 @@ function drawPlayer(p) {
         ctx.closePath();
         ctx.fill();
     }
+	
 
     ctx.restore();
 }
@@ -365,18 +412,67 @@ function shadeColor(color, amount) {
     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
-    function drawLeaderboard() {
-        if (!gameState.players || gameState.players.length === 0) return;
-        const sorted = [...gameState.players].sort((a,b) => (b.laps || 0) - (a.laps || 0));
-        ctx.fillStyle = "rgba(0,0,0,0.5)";
-        ctx.fillRect(canvas.width - 250, 20, 230, 40 + (sorted.length * 35));
+
+function drawLeaderboard() {
+    if (!gameState.players || gameState.players.length === 0) return;
+    
+    // Ordenar por vueltas y luego por posición en pista (opcional)
+    const sorted = [...gameState.players].sort((a, b) => (b.laps || 0) - (a.laps || 0));
+    
+    const x = 30;
+    const y = 80;
+    const rowHeight = 35;
+    const width = 220;
+
+    ctx.save();
+    
+    // Encabezado "TOWER"
+    ctx.fillStyle = "#e10600"; // Rojo F1
+    ctx.fillRect(x, y, width, 30);
+    ctx.fillStyle = "white";
+    ctx.font = "bold 14px 'Segoe UI'";
+    ctx.fillText("POS    DRIVER", x + 10, y + 20);
+    ctx.textAlign = "right";
+    ctx.fillText("LAPS", x + width - 10, y + 20);
+    ctx.textAlign = "left";
+
+    sorted.forEach((p, i) => {
+        const rowY = y + 30 + (i * rowHeight);
         
-        sorted.forEach((p, i) => {
-            ctx.fillStyle = "#fff";
-            ctx.font = "14px Arial";
-            ctx.fillText(`P${i+1} ID:${p.id.slice(0,4)} | LAPS: ${p.laps || 0}`, canvas.width - 230, 50 + (i*35));
-        });
-    }
+        // Fondo de fila (alternado para legibilidad)
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(x, rowY, width, rowHeight - 2);
+
+        // Barra de color del equipo/auto
+        ctx.fillStyle = p.color;
+        ctx.fillRect(x, rowY, 5, rowHeight - 2);
+
+        // Texto de posición y Nombre (ID corto)
+        ctx.fillStyle = "white";
+        ctx.font = "600 14px 'Segoe UI'";
+        ctx.fillText(`${i + 1}`, x + 15, rowY + 22);
+        
+        ctx.fillStyle = "#ccc";
+        ctx.font = "400 13px 'Segoe UI'";
+        ctx.fillText(p.id.slice(0, 5).toUpperCase(), x + 45, rowY + 22);
+
+        // Vueltas
+        ctx.textAlign = "right";
+        ctx.fillStyle = "white";
+        ctx.fillText(`${p.laps || 0}`, x + width - 10, rowY + 22);
+        ctx.textAlign = "left";
+
+        // Indicador si está en PITS o GRASS (pequeño punto)
+        if (p.isOnGrass) {
+            ctx.fillStyle = "#ffcc00";
+            ctx.beginPath();
+            ctx.arc(x + width - 50, rowY + 18, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+
+    ctx.restore();
+}
 
     // 5. LOOP PRINCIPAL
 // 5. LOOP PRINCIPAL
@@ -390,6 +486,7 @@ function shadeColor(color, amount) {
         ctx.translate(-worldWidth / 2, -worldHeight / 2);
 
         drawTrack();
+		drawGridMarks();
 drawTireBarrier();
         // Partículas: Filtrar y actualizar
         particles = particles.filter(p => p.life > 0);

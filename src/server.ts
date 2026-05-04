@@ -69,26 +69,43 @@ Composite.add(engine.world, tireBarrier);
 
 const players: Map<string, Car> = new Map();
 
+
+// --- CONFIGURACIÓN DE LA PARRILLA ---
+const GRID_START_X = 740; // Un poco a la derecha del centro (800) como pediste
+const GRID_START_Y = 610; // En la zona de la meta (recta inferior)
+const OFFSET_X = -100;    // Cuánto se mueve hacia atrás (izquierda en pantalla)
+const OFFSET_Y = 80;     // Cuánto se desplaza lateralmente (abajo en pantalla)
 // --- SOCKETS ---
 io.on('connection', (socket) => {
     console.log('Conectado:', socket.id);
 
-    socket.on('register_player', () => {
-        if (players.has(socket.id)) return;
-        
-        // Creamos la instancia de la clase Car (Asegúrate de que Car.ts acepte estos parámetros)
-const newCar = new Car(
-    socket.id,
-    '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
-    800,
-    590
-);
+socket.on('register_player', () => {
+    if (players.has(socket.id)) return;
 
+    // Calculamos la posición según el número de autos actuales
+    const index = players.size; // 0 para el primero, 1 para el segundo, etc.
+    
+    /**
+     * LÓGICA DE PARRILLA:
+     * - El 'piso' de la división (index / 2) nos dice en qué fila está.
+     * - El módulo (index % 2) nos dice si está en la columna de la derecha o izquierda.
+     */
+    const row = Math.floor(index / 2);
+    const col = index % 2;
 
-        
-        players.set(socket.id, newCar);
-        Composite.add(engine.world, newCar.body);
-    });
+    const posX = GRID_START_X + (row * OFFSET_X);
+    const posY = GRID_START_Y + (col * OFFSET_Y);
+
+    const newCar = new Car(
+        socket.id,
+        '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+        posX,
+        posY
+    );
+
+    players.set(socket.id, newCar);
+    Composite.add(engine.world, newCar.body);
+});
 
     socket.on('drive', (data: PlayerInput) => {
         const car = players.get(socket.id);
