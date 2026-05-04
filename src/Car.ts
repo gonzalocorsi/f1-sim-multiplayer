@@ -54,7 +54,7 @@ export class Car {
 if (this.isGas && this.isTurbo && this.energy > 0) {
     this.energy -= 0.015;
 } else if (this.energy < 1.0) {
-    this.energy += 0.0003;
+    this.energy += 0.001;
 }
 if (this.energy <= 0) this.isTurbo = false;
 

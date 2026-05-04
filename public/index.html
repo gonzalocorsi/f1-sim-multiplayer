@@ -5,258 +5,183 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="/socket.io/socket.io.js"></script>
     <style>
-	
-        body { 
-            background: #000; color: #fff; font-family: sans-serif; 
-            text-align: center; overflow: hidden; margin: 0; padding: 0; 
-            user-select: none; -webkit-user-select: none;
-            width: 100vw; height: 100vh;
-            display: flex; flex-direction: column; justify-content: center;
+        * { box-sizing: border-box; }
+        body {
+            background: #000; color: #fff; font-family: sans-serif;
+            margin: 0; padding: 0; overflow: hidden;
+            width: 100vw; height: 100vh; display: flex; flex-direction: column;
         }
-        #gamepad { display: none; width: 100%; height: 100%; flex-direction: column; justify-content: center; }
-        
-        .btn { 
-            width: 80%; height: 60%; margin: 0 auto; border: 5px solid #fff; 
-            display: flex; align-items: center; justify-content: center; 
-            font-size: 40px; font-weight: bold; border-radius: 25px; 
+
+        /* TELEMETRÍA (SIEMPRE ARRIBA) */
+        #telemetry-display {
+            height: 44px; display: flex; justify-content: space-between;
+            align-items: center; padding: 0 12px; background: rgba(17,17,17,0.95);
+            z-index: 10;
+        }
+        .bar-container { width: 55px; height: 7px; background: #333; border-radius: 4px; overflow: hidden; }
+        .bar { height: 100%; transition: width 0.2s; }
+        #tire-bar { background: #fff; }
+        #ers-bar { background: #efff00; }
+        #speedometer { color: #00ff00; font-family: monospace; }
+
+        /* PANTALLA INICIO */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; display: flex; align-items: center; justify-content: center; z-index: 1000;
+        }
+        #start-btn {
+            width: 70%; height: 60px; background: #fff; color: #000;
+            font-weight: bold; border-radius: 15px; display: flex; align-items: center; justify-content: center;
+        }
+
+        /* GAMEPAD LAYOUT - DINÁMICO */
+        #gamepad {
+            display: none; flex: 1; width: 100%;
+            flex-direction: column; /* Vertical: Gas arriba, Reverse medio, Turbo abajo */
+        }
+
+        /* Orientación Horizontal (MODO VOLANTE) */
+        @media (orientation: landscape) {
+            #gamepad {
+                flex-direction: row; /* Horizontal: Gas izq, Reverse centro, Turbo der */
+            }
+            #gas-zone { border-right: 2px solid #222; border-bottom: none !important; }
+            #reverse-zone { border-right: 2px solid #222; border-bottom: none !important; }
+        }
+
+        /* ZONAS */
+        #gas-zone {
+            flex: 2; /* Más grande: 50% */
+            background: #220000; display: flex; align-items: center; justify-content: center;
+            border-bottom: 2px solid #222; transition: background 0.1s;
+        }
+        #gas-zone.active { background: #e10600; }
+
+        #reverse-zone {
+            flex: 1; /* 25% */
+            background: #1a1a1a; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; border-bottom: 2px solid #222;
+        }
+
+        #turbo-zone {
+            flex: 1; /* 25% */
+            background: #002233; display: flex; align-items: center; justify-content: center;
             transition: background 0.1s;
-            touch-action: none;
         }
-        #accel { background: #e10600; text-shadow: 2px 2px #000; }
-        #accel.active { background: #fff; color: #000; }
-        
-        #start-btn { 
-            background: #fff; color: #000; height: 80px; font-size: 20px; 
-            width: 80%; margin: 0 auto; cursor: pointer; display: flex;
+        #turbo-zone.active { background: #00a0ff; }
+
+        .btn-label { 
+            font-weight: 900; color: rgba(255,255,255,0.2); 
+            pointer-events: none; text-transform: uppercase; text-align: center;
         }
-        
-        #debug { color: #555; font-family: monospace; font-size: 14px; position: absolute; bottom: 10px; width: 100%; }
-        
-        #restart-btn { 
-            display: none; position: fixed; top: 15px; right: 15px; 
-            background: #444; color: white; border: 1px solid #777; padding: 10px; 
-            border-radius: 8px; font-size: 10px; z-index: 1000;
-        }
-		/* Efecto de vibración visual cuando aceleras */
-    .btn.active { 
-        transform: scale(0.98); 
-        box-shadow: 0 0 20px #e10600;
-    }
-    /* Indicador de dirección */
-    #steering-indicator {
-        width: 100px; height: 10px; background: #333;
-        margin: 20px auto; border-radius: 5px; position: relative;
-    }
-    #dot {
-        width: 20px; height: 20px; background: #fff;
-        border-radius: 50%; position: absolute; top: -5px; left: 40px;
-        transition: left 0.1s;
-    }
-	#turbo { background: #00a0ff; height: 30%; font-size: 20px; margin-top: 10px; }
-    #turbo.active { background: #fff; color: #00a0ff; }
-	#telemetry-display {
-    padding: 10px;
-    background: #111;
-    border-radius: 10px;
-    margin-bottom: 15px;
-}
-.stat { display: flex; align-items: center; margin: 5px 0; font-size: 12px; }
-.stat span { width: 50px; text-align: left; }
-.bar-container { flex-grow: 1; height: 10px; background: #333; border-radius: 5px; overflow: hidden; }
-.bar { height: 100%; transition: width 0.2s; }
-#tire-bar { background: #fff; width: 100%; } /* Neumáticos blancos */
-#ers-bar { background: #efff00; width: 0%; }  /* ERS amarillo */
-#speedometer { font-size: 24px; font-weight: bold; font-family: monospace; color: #00ff00; }
+
+        #reverse-bar-ui { width: 40%; height: 6px; background: #333; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+        #reverse-fill { height: 100%; width: 0%; background: #ffcc00; }
+
+        #debug { position: absolute; bottom: 5px; width: 100%; text-align: center; font-size: 10px; color: #444; pointer-events: none; }
     </style>
 </head>
 <body>
 
-    <div id="start-btn" class="btn">TOCÁ PARA CONECTAR</div>
-    
-    <div id="gamepad">
-        <h2 style="color: #e10600; margin: 10px 0;">F1 LIVE MODE</h2>
-        <div id="accel" class="btn">ACELERAR</div>
-        <p id="debug">Calibrando volante...</p>
-		<div id="steering-indicator"><div id="dot"></div></div>	
-		<div id="turbo" class="btn">DRS / TURBO</div>
-		<!-- Indicador de marcha atrás -->
-<div style="display:flex; align-items:center; gap:10px; margin: 8px auto; width:80%;">
-    <span style="font-size:11px; color:#555; width:50px;">REVERSE</span>
-    <div id="reverse-indicator" style="flex:1; height:14px; background:#222; border-radius:7px; overflow:hidden; border:1px solid #444;">
-        <div id="reverse-fill" style="height:100%; width:0%; background:#e10600; border-radius:7px; transition:height 0.05s; transform:rotate(180deg); transform-origin:bottom;"></div>
+    <div id="telemetry-display">
+        <h2 style="font-size:14px; color:#e10600; margin:0;">F1 LIVE</h2>
+        <div style="display:flex; gap:10px;">
+            <div class="bar-container"><div id="tire-bar" class="bar" style="width:100%"></div></div>
+            <div class="bar-container"><div id="ers-bar" class="bar" style="width:0%"></div></div>
+        </div>
+        <div id="speedometer">0 KM/H</div>
     </div>
-    <span id="reverse-label" style="font-size:11px; color:#555; width:24px;">OFF</span>
-</div>
-    </div>
-	<div id="telemetry-display">
-    <div class="stat">
-        <span>TYRES</span>
-        <div class="bar-container"><div id="tire-bar" class="bar"></div></div>
-    </div>
-    <div class="stat">
-        <span>ERS</span>
-        <div class="bar-container"><div id="ers-bar" class="bar"></div></div>
-    </div>
-    <div id="speedometer">0 KM/H</div>
-</div>
 
-    <button id="restart-btn">REINICIAR</button>
+    <div id="start-screen">
+        <div id="start-btn">TOCÁ PARA CONECTAR</div>
+    </div>
+
+    <div id="gamepad">
+        <!-- GAS (50%) -->
+        <div id="gas-zone">
+            <span class="btn-label" style="font-size:40px;">GAS</span>
+        </div>
+
+        <!-- REVERSE (25%) -->
+        <div id="reverse-zone">
+            <span class="btn-label" style="font-size:12px;">REVERSE<br>SWIPE L</span>
+            <div id="reverse-bar-ui"><div id="reverse-fill"></div></div>
+        </div>
+
+        <!-- TURBO (25%) -->
+        <div id="turbo-zone">
+            <span class="btn-label" style="font-size:20px;">TURBO / DRS</span>
+        </div>
+    </div>
+
+    <p id="debug">Iniciando...</p>
 
     <script>
-	
-        // 1. PRIMERO inicializamos el socket
         const socket = io();
-        
-        const debug = document.getElementById('debug');
+        const startScreen = document.getElementById('start-screen');
         const startBtn = document.getElementById('start-btn');
         const gamepad = document.getElementById('gamepad');
-        const accelBtn = document.getElementById('accel');
-        const restartBtn = document.getElementById('restart-btn');
-			
-        let isGas = false;
-        let sensorActivo = false;
+        const gasZone = document.getElementById('gas-zone');
+        const reverseZone = document.getElementById('reverse-zone');
+        const turboZone = document.getElementById('turbo-zone');
+        const debug = document.getElementById('debug');
 
-        // 2. Definimos los eventos del socket
-        socket.on('connect', () => {
-            console.log("Conectado con ID:", socket.id);
-            // No registramos aquí todavía, esperamos al toque del usuario por los permisos de sensores
-        });
+        let isGas = false, isTurbo = false, isReverse = false;
 
-        socket.on('is_host', (isHost) => {
-            if(isHost) restartBtn.style.display = 'block';
-        });
-
-        // 3. Función para iniciar sensores y registro
         startBtn.onclick = function() {
-            // Registrar al jugador en el servidor
             socket.emit('register_player');
-
-            // Pedir permiso para sensores (necesario en iOS y Chrome moderno)
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') activarSensores();
-                    })
-                    .catch(console.error);
-            } else {
-                activarSensores();
-            }
+                DeviceOrientationEvent.requestPermission().then(state => { if(state === 'granted') ready(); }).catch(console.error);
+            } else { ready(); }
         };
 
-        function activarSensores() {
-            sensorActivo = true;
-            startBtn.style.display = 'none';
+        function ready() {
+            startScreen.style.display = 'none';
             gamepad.style.display = 'flex';
+            activarSensores();
+        }
 
+        function activarSensores() {
             window.addEventListener('devicemotion', (event) => {
                 let tilt = event.accelerationIncludingGravity.y || 0;
                 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-                let finalTilt = isIOS ? -tilt : tilt; 
-
-                let turnValue = finalTilt / 6;
+                let turnValue = (isIOS ? -tilt : tilt) / 6;
+                turnValue = Math.max(-1, Math.min(1, turnValue));
                 if (Math.abs(turnValue) < 0.1) turnValue = 0;
-                if (turnValue > 1) turnValue = 1;
-                if (turnValue < -1) turnValue = -1;
 
-				socket.emit('drive', { turn: turnValue, gas: isGas, turbo: isTurbo, reverse: isReverse });
-                debug.innerText = `GIRO: ${Math.abs(turnValue * 100).toFixed(0)}%`;
-            // En la función activarSensores(), actualiza el visualizador del mando:
-			const dot = document.getElementById('dot');
-			// ... dentro del listener de devicemotion ...
-			let visualPos = 40 + (turnValue * 40); // Mueve el punto blanco de 0 a 80px
-			dot.style.left = visualPos + 'px';}, true);
-			
-
-			
+                socket.emit('drive', { turn: turnValue, gas: isGas, turbo: isTurbo, reverse: isReverse });
+                debug.innerText = `GIRO: ${Math.round(turnValue * 100)}%`;
+            }, true);
         }
 
-        // Eventos de aceleración
-        accelBtn.addEventListener('touchstart', (e) => { 
-            e.preventDefault(); 
-            isGas = true; 
-            accelBtn.classList.add('active'); 
+        // --- INPUTS ---
+        gasZone.addEventListener('touchstart', (e) => { e.preventDefault(); isGas = true; gasZone.classList.add('active'); });
+        gasZone.addEventListener('touchend', () => { isGas = false; gasZone.classList.remove('active'); });
+
+        turboZone.addEventListener('touchstart', (e) => { e.preventDefault(); isTurbo = true; turboZone.classList.add('active'); });
+        turboZone.addEventListener('touchend', () => { isTurbo = false; turboZone.classList.remove('active'); });
+
+        let startX = 0;
+        reverseZone.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, {passive: true});
+        reverseZone.addEventListener('touchmove', (e) => {
+            let delta = startX - e.touches[0].clientX;
+            if (delta > 0) {
+                let pull = Math.min(delta / 80, 1);
+                document.getElementById('reverse-fill').style.width = (pull * 100) + '%';
+                if (pull >= 0.9) isReverse = true;
+            }
+        }, {passive: true});
+
+        document.addEventListener('touchend', () => {
+            isReverse = false;
+            document.getElementById('reverse-fill').style.width = '0%';
         });
-        accelBtn.addEventListener('touchend', (e) => { 
-            e.preventDefault(); 
-            isGas = false; 
-            accelBtn.classList.remove('active'); 
+
+        socket.on('telemetry', (data) => {
+            document.getElementById('tire-bar').style.width = data.tireHealth + '%';
+            document.getElementById('ers-bar').style.width = data.energy + '%';
+            document.getElementById('speedometer').innerText = data.speed + " KM/H";
         });
-
-        restartBtn.onclick = () => {
-            if (confirm("¿Reiniciar carrera?")) socket.emit('request_restart');
-        };
-
-       document.addEventListener('touchmove', (e) => {
-    // Solo prevenir default en los botones, no en el resto
-    if (e.target === accelBtn || e.target === turboBtn) {
-        e.preventDefault();
-    }
-}, { passive: false });
-		let isTurbo = false;
-const turboBtn = document.getElementById('turbo');
-
-turboBtn.addEventListener('touchstart', (e) => { 
-    isTurbo = true; 
-    turboBtn.classList.add('active'); 
-});
-turboBtn.addEventListener('touchend', (e) => { 
-    isTurbo = false; 
-    turboBtn.classList.remove('active'); 
-});
-const tireBar = document.getElementById('tire-bar');
-const ersBar = document.getElementById('ers-bar');
-const speedo = document.getElementById('speedometer');
-
-
-socket.on('telemetry', (data) => {
-    // Actualizar barras visuales
-    tireBar.style.width = data.tireHealth + '%';
-    ersBar.style.width = data.energy + '%';
-    speedo.innerText = data.speed + " KM/H";
-
-    // Feedback visual si se acaban las gomas (rojo)
-    if (data.tireHealth < 20) tireBar.style.background = "#e10600";
-});
-// --- MARCHA ATRÁS CON SWIPE HORIZONTAL ---
-let isReverse = false;
-let swipeStartX = 0;
-let swipePull = 0;
-const SWIPE_THRESHOLD = 100;
-
-const reverseFill = document.getElementById('reverse-fill');
-
-document.addEventListener('touchstart', (e) => {
-    const target = e.target;
-    if (target === accelBtn || target === turboBtn) return;
-    swipeStartX = e.touches[0].clientX;
-    swipePull = 0;
-}, { passive: true });
-
-document.addEventListener('touchmove', (e) => {
-    const target = e.target;
-    if (target === accelBtn || target === turboBtn) return;
-
-    const deltaX = swipeStartX - e.touches[0].clientX; // derecha a izquierda = positivo
-    if (deltaX > 0) {
-        swipePull = Math.min(deltaX / SWIPE_THRESHOLD, 1);
-        reverseFill.style.width = (swipePull * 100) + '%';
-    } else {
-        swipePull = 0;
-        reverseFill.style.width = '0%';
-    }
-}, { passive: true });
-
-document.addEventListener('touchend', () => {
-    if (swipePull >= 1) {
-        isReverse = !isReverse;
-        if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
-        document.getElementById('reverse-label').innerText = isReverse ? 'ON' : 'OFF';
-        document.getElementById('reverse-label').style.color = isReverse ? '#e10600' : '#555';
-    }
-    swipePull = 0;
-    reverseFill.style.width = '0%';
-    swipeStartX = 0;
-});
     </script>
 </body>
 </html>
