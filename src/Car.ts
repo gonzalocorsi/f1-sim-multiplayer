@@ -44,11 +44,23 @@ export class Car {
 
        const currentGrip = baseGrip * this.tireHealth;
         const lateralVel = velocity.x * right.x + velocity.y * right.y;
+		// 1. Calculamos cuánto de nuestra velocidad actual es lateral (el derrape)
+const lateralVelX = right.x * (velocity.x * right.x + velocity.y * right.y);
+const lateralVelY = right.y * (velocity.x * right.x + velocity.y * right.y);
+
+// 2. Calculamos la velocidad frontal (lo que sí queremos mantener)
+const forwardVelX = velocity.x - lateralVelX;
+const forwardVelY = velocity.y - lateralVelY;
+
+// 3. Aplicamos el grip: mantenemos la frontal y reducimos la lateral
+// Si currentGrip es 0.15 (pasto), el auto conserva el 85% de su deslizamiento lateral
+// Si currentGrip es 0.98 (asfalto), el auto conserva solo el 2% (se pega al suelo)
+const gripFactor = 1 - currentGrip;
         
-        Body.setVelocity(this.body, {
-            x: velocity.x - (right.x * lateralVel * currentGrip),
-            y: velocity.y - (right.y * lateralVel * currentGrip)
-        });
+       Body.setVelocity(this.body, {
+    x: forwardVelX + (lateralVelX * gripFactor),
+    y: forwardVelY + (lateralVelY * gripFactor)
+});
 
         // --- Lógica de Energía (ERS) ---
 if (this.isGas && this.isTurbo && this.energy > 0) {

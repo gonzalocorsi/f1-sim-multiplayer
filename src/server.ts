@@ -126,28 +126,19 @@ socket.on('register_player', () => {
     });
 });
 
+// --- LOOP DE ALTA FRECUENCIA: FÍSICA Y MOVIMIENTO (60 FPS) ---
 setInterval(() => {
+    // 1. Actualizar motor físico
     Engine.update(engine, 1000 / 60);
+
     const playerList = Array.from(players.values());
 
-   playerList.forEach((car) => {
-    const px = car.body.position.x;
-    const py = car.body.position.y;
-    const onOuterGrass = px < 225  || px > 1375  || py < 175  || py > 725;
-    const collision = Matter.Collision.collides(car.body, trackWalls[4]); // ← solo una vez
-    car.isOnGrass = collision !== null || onOuterGrass;
-
-    car.update();
-    car.checkLap();
-
-    io.to(car.id).emit('telemetry', {
-        tireHealth: Math.floor(car.tireHealth * 100),
-        energy: Math.floor(car.energy * 100),
-        speed: Math.floor(car.body.speed * 20),
-        isOnGrass: car.isOnGrass
+    playerList.forEach((car) => {
+        // Ejecutar aplicación de fuerzas (esto debe ser fluido)
+        car.update(); 
     });
-});
 
+    // 2. Broadcast de posiciones críticas a todos los clientes
     io.emit('state_update', {
         tireBarrier: tireBarrier.map(t => ({ x: t.position.x, y: t.position.y })),
         players: playerList.map(car => {
@@ -169,6 +160,33 @@ setInterval(() => {
         })
     });
 }, 1000 / 60);
+
+
+// --- LOOP DE BAJA FRECUENCIA: LÓGICA Y TELEMETRÍA (10 FPS) ---
+setInterval(() => {
+    const playerList = Array.from(players.values());
+
+    playerList.forEach((car) => {
+        // 1. Detección de superficie (Pasto) - Operación costosa de colisión
+        const px = car.body.position.x;
+        const py = car.body.position.y;
+        const onOuterGrass = px < 225 || px > 1375 || py < 175 || py > 725;
+        const collision = Matter.Collision.collides(car.body, trackWalls[4]);
+        
+        car.isOnGrass = collision !== null || onOuterGrass;
+
+        // 2. Lógica de vueltas
+        car.checkLap();
+
+        // 3. Enviar telemetría detallada solo al dueño del auto
+        io.to(car.id).emit('telemetry', {
+            tireHealth: Math.floor(car.tireHealth * 100),
+            energy: Math.floor(car.energy * 100),
+            speed: Math.floor(car.body.speed * 20),
+            isOnGrass: car.isOnGrass
+        });
+    });
+}, 100); // 100ms = 10 veces por segundo
 
 const PORT = 3000;
 httpServer.listen(PORT, () => console.log(`>>> F1 Engine (TS) en puerto: ${PORT}`));

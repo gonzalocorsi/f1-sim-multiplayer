@@ -4,7 +4,7 @@
 * Salir disparado despues de patinar mucho tiempo en el pasto
 * Corregir el mecanismo de la marcha atras *
 *Mejorar particulas
-
+*Contador de vueltas
 ##Features de pista y de juego
 
 ###Features de pista
@@ -13,6 +13,7 @@
 *Choques intencionales
 
 ###Features del juego
+*Lobby y mensajes publicos
 *Semaforo de largada
 *Elegir nro de vueltas
 *Crear usuarios e iniciar sesion
@@ -20,3 +21,8 @@
 
 *Scanear codigo QR para ingresar
 *App nativa para android TV
+
+
+
+
+*Mejorar el layout de los botones.
