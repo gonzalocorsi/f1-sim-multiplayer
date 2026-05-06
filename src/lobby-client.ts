@@ -1,5 +1,11 @@
-import { io, Socket } from 'socket.io-client';
-import { Room, RedirectData } from '../types.js';
+// 1. Quitá cualquier import de socket.io-client si vas a usar el declare
+import { Room } from './types.js'; 
+
+// 2. Usamos declare para decirle a TS que "io" vendrá del HTML (CDN)
+declare var io: any;
+
+// 3. Declaramos socket UNA SOLA VEZ
+const socket = io();
 
 // En lugar de import { io } from 'socket.io-client', usamos:
 declare var io: any; 
@@ -9,10 +15,12 @@ const socket: Socket = io();
 const roomContainer = document.getElementById('room-list') as HTMLDivElement;
 
 socket.on('update_rooms', (rooms: Room[]) => {
+    const roomContainer = document.getElementById('room-container'); // Aseguramos que existe
     if (!roomContainer) return;
+    
     roomContainer.innerHTML = '';
 
-    rooms.forEach(room => {
+    rooms.forEach((room: Room) => {
         const card = document.createElement('div');
         card.className = 'room-card';
         card.innerHTML = `
