@@ -1,5 +1,9 @@
 import { io, Socket } from 'socket.io-client';
-import { Room, RedirectData } from '../types';
+import { Room, RedirectData } from '../types.js';
+
+// En lugar de import { io } from 'socket.io-client', usamos:
+declare var io: any; 
+const socket = io();
 
 const socket: Socket = io();
 const roomContainer = document.getElementById('room-list') as HTMLDivElement;
