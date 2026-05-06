@@ -3,7 +3,7 @@ import { createServer, Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Room } from './types';
+import { Room } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
