@@ -85,7 +85,7 @@
 <body>
 
     <div id="telemetry-display">
-        <h2 style="font-size:14px; color:#e10600; margin:0;">F1 LIVE</h2>
+        <div onclick="quitGame()" style="cursor:pointer; background:#e10600; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:10px;">EXIT</div>
         <div style="display:flex; gap:10px;">
             <div class="bar-container"><div id="tire-bar" class="bar" style="width:100%"></div></div>
             <div class="bar-container"><div id="ers-bar" class="bar" style="width:0%"></div></div>
@@ -183,6 +183,14 @@
             document.getElementById('ers-bar').style.width = data.energy + '%';
             document.getElementById('speedometer').innerText = data.speed + " KM/H";
         });
+		function quitGame() {
+		// Detenemos el socket antes de irnos para evitar conexiones fantasma
+    socket.disconnect();
+
+    const host = window.location.hostname; 
+    window.location.href = `http://${host}:4000`; // Vuelve al servidor central
+
+}
     </script>
 </body>
 </html>

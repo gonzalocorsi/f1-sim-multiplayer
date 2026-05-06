@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>F1 PRO - RACE LOBBY</title>
+    <style>
+        :root {
+            --f1-red: #e10600;
+            --f1-black: #15151e;
+            --f1-dark-gray: #38383f;
+            --f1-white: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: #000;
+            color: var(--f1-white);
+            font-family: 'Titillium Web', 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* HEADER ESTILO F1 */
+        header {
+            width: 100%;
+            background: var(--f1-black);
+            padding: 20px;
+            border-bottom: 5px solid var(--f1-red);
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .logo {
+            font-weight: 900;
+            font-style: italic;
+            font-size: 24px;
+            letter-spacing: -1px;
+        }
+
+        .logo span { color: var(--f1-red); }
+
+        /* CONTENEDOR PRINCIPAL */
+        main {
+            width: 90%;
+            max-width: 600px;
+            margin-top: 30px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            text-transform: uppercase;
+            color: var(--f1-dark-gray);
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+            border-left: 3px solid var(--f1-red);
+            padding-left: 10px;
+        }
+
+        /* LISTADO DE SALAS (Inyectado por TS) */
+        #room-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* CARD DE SALA */
+        .room-card {
+            background: var(--f1-black);
+            border: 1px solid #222;
+            padding: 20px;
+            position: relative;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .room-card:hover {
+            border-color: var(--f1-red);
+            transform: translateX(5px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .room-name {
+            font-size: 18px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-badge {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 2px;
+            font-weight: 800;
+        }
+		.status-disabled { background: #444; color: #888; }
+        .status-waiting { background: #00ff00; color: #000; }
+        .status-racing { background: var(--f1-red); color: #fff; }
+
+        .room-details {
+            display: flex;
+            justify-content: space-between;
+            font-family: monospace;
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .join-btn {
+            margin-top: 15px;
+            width: 100%;
+            padding: 12px;
+            background: transparent;
+            border: 1px solid var(--f1-white);
+            color: var(--f1-white);
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+        }
+
+        .room-card:hover .join-btn {
+            background: var(--f1-white);
+            color: #000;
+        }
+
+        /* FOOTER DE ESTADO */
+        footer {
+            margin-top: auto;
+            padding: 20px;
+            font-size: 10px;
+            color: var(--f1-dark-gray);
+            text-transform: uppercase;
+        }
+
+        /* ANIMACIÓN DE CARGA */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-style: italic;
+            color: var(--f1-dark-gray);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">F1<span>PRO</span> MULTIPLAYER</div>
+    </header>
+
+    <main>
+        <div class="section-title">Servidores Activos</div>
+        
+        <div id="room-list">
+            <div class="loading">Buscando sesiones de carrera...</div>
+        </div>
+    </main>
+
+    <footer>
+        Bahía Blanca Engine v2.0 - 2026
+    </footer>
+
+    <!-- Socket.io debe cargarse antes que tu script de cliente -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Aquí vinculas el JS compilado de tu lobby-client.ts -->
+    <script type="module" src="dist/lobby-client.js"></script>
+<script>
+    // Conectamos al servidor de Socket.io (Puerto 4000)
+    const socket = io();
+
+    socket.on('update_rooms', (rooms) => {
+        console.log("Salas recibidas:", rooms);
+        const container = document.getElementById('room-list'); // ID corregido
+        
+        if (!rooms || rooms.length === 0) {
+            container.innerHTML = '<div class="loading">No hay sesiones activas.</div>';
+            return;
+        }
+
+        container.innerHTML = ''; // Limpiamos el cargando...
+
+        rooms.forEach(room => {
+			// 1. Verificamos si la sala está disponible
+			const isAvailable = room.status !== 'coming_soon';
+			
+			// 2. Definimos las clases y textos según el estado
+			let statusClass = '';
+			let statusText = '';
+			
+			if (room.status === 'coming_soon') {
+				statusClass = 'status-disabled'; // Crearemos esta clase en el CSS
+				statusText = 'SIN FECHA';
+			} else {
+				statusClass = room.status === 'waiting' ? 'status-waiting' : 'status-racing';
+				statusText = room.status === 'waiting' ? 'EN BOXES' : 'EN CARRERA';
+			}
+            // 3. Construimos el HTML condicionalmente
+			container.innerHTML += `
+				<div class="room-card" 
+					 style="${!isAvailable ? 'opacity: 0.5; cursor: not-allowed; border-color: #222;' : ''}" 
+					 ${isAvailable ? `onclick="joinRoom('${room.id}')"` : ''}>
+					
+					<div class="card-header">
+						<span class="room-name">${room.name}</span>
+						<span class="status-badge ${statusClass}">${statusText}</span>
+					</div>
+					
+					<div class="room-details">
+						<span>MAPA: ${room.mapName}</span>
+						<span>${isAvailable ? `PILOTOS: ${room.playerCount}/${room.maxPlayers}` : 'PRÓXIMAMENTE'}</span>
+					</div>
+					
+					<button class="join-btn" ${!isAvailable ? 'disabled style="display:none;"' : ''}>
+						Ingresar a Boxes
+					</button>
+				</div>
+			`;
+        });
+    });
+
+    // Función para solicitar unirse
+    function joinRoom(roomId) {
+        console.log("Intentando unir a:", roomId);
+        socket.emit('select_room', roomId);
+    }
+
+    // Escuchar la redirección que envía el servidor
+    socket.on('redirect', (data) => {
+        const host = window.location.hostname; // Detecta si es localhost o 192.168.0.154
+        const destino = `http://${host}:${data.port}/mando?room=${data.roomId}`;
+        console.log("Redirigiendo a:", destino);
+        window.location.href = destino;
+    });
+</script>
+</body>
+</html>

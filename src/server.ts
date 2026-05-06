@@ -19,6 +19,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/tv', (req, res) => res.sendFile(path.join(__dirname, '../public', 'tv.html')));
 app.get('/mando', (req, res) => res.sendFile(path.join(__dirname, '../public', 'index.html')));
+// En tu server.ts de carrera:
 
 // --- MOTOR FÍSICO ---
 const { Engine, Bodies, Composite } = Matter;
@@ -75,9 +76,33 @@ const GRID_START_X = 740; // Un poco a la derecha del centro (800) como pediste
 const GRID_START_Y = 610; // En la zona de la meta (recta inferior)
 const OFFSET_X = -100;    // Cuánto se mueve hacia atrás (izquierda en pantalla)
 const OFFSET_Y = 80;     // Cuánto se desplaza lateralmente (abajo en pantalla)
+
+// Función para avisar al lobby los cambios
+async function updateLobbyStatus() {
+    // Usamos players.size porque tu Map se llama players
+    const count = players.size; 
+    
+    const data = {
+        roomId: "gp-argentina",
+        playerCount: count,
+        status: count > 0 ? "racing" : "waiting"
+    };
+
+    try {
+        // Importante: fetch ya viene nativo en Node 18, así que esto debería andar
+        await fetch("http://localhost:4000/update-status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+        });
+    } catch (error) {
+        // Si el lobby está apagado, solo lo ignoramos para que no explote la carrera
+    }
+}
 // --- SOCKETS ---
 io.on('connection', (socket) => {
     console.log('Conectado:', socket.id);
+	console.log('Nuevo piloto en pista');
 
 socket.on('register_player', () => {
     if (players.has(socket.id)) return;
@@ -105,6 +130,8 @@ socket.on('register_player', () => {
 
     players.set(socket.id, newCar);
     Composite.add(engine.world, newCar.body);
+	
+	updateLobbyStatus();
 });
 
     socket.on('drive', (data: PlayerInput) => {
@@ -118,13 +145,18 @@ socket.on('register_player', () => {
     });
 
     socket.on('disconnect', () => {
+		console.log('Piloto se retiró');
         const car = players.get(socket.id);
         if (car) {
             Composite.remove(engine.world, car.body);
             players.delete(socket.id);
         }
+		
+		updateLobbyStatus();
     });
 });
+
+
 
 // --- LOOP DE ALTA FRECUENCIA: FÍSICA Y MOVIMIENTO (60 FPS) ---
 setInterval(() => {
@@ -190,3 +222,4 @@ setInterval(() => {
 
 const PORT = 3000;
 httpServer.listen(PORT, () => console.log(`>>> F1 Engine (TS) en puerto: ${PORT}`));
+updateLobbyStatus();

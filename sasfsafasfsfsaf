@@ -1,0 +1,59 @@
+[33mcommit c0cb471f5d274ea91780912cd417a91070e7fc4f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Gonzalo Corsico <gonzalocorsicocbc@gmail.com>
+Date:   Mon May 4 19:57:13 2026 -0300
+
+    correcccion derrape definitivo, esperemos. le reduje la velocidad maxima cuando tenes las ruedas rotas
+
+[33mcommit 3b2f2b839e63bdd642f8feaf02f75b8afa84385f[m
+Author: Gonzalo Corsico <gonzalocorsicocbc@gmail.com>
+Date:   Mon May 4 19:21:18 2026 -0300
+
+    correccion de derrape infinito y sacudida por pantalla
+
+[33mcommit 1e6acc73febd579c15f8507d5ad03077620b424e[m
+Author: Gonzalo Corsico <gonzalocorsicocbc@gmail.com>
+Date:   Mon May 4 13:09:04 2026 -0300
+
+    brakets y parrilla de saida
+
+[33mcommit 91eb13d024319a2a366b752555147a0ea186b116[m
+Author: Gonzalo Corsico <gonzalocorsicocbc@gmail.com>
+Date:   Mon May 4 00:54:07 2026 -0300
+
+    mejora mando
+
+[33mcommit bffbb0a1e11d0a1e2f85d067843b09728ee010a7[m
+Author: Gonzalo Corsico <gonzalocorsicocbc@gmail.com>
+Date:   Sun May 3 18:55:07 2026 -0300
+
+    fix: grass detection
+
+[33mcommit fab3ae2e10c7b554578cfea6e06b3dfb6b6aacc1[m
+Author: Gonzalo Corsico <gonzalocorsicocbc@gmail.com>
+Date:   Sat May 2 23:36:37 2026 -0300
+
+    manejo horizontal
+
+[33mcommit e28401350d312c49a0be0854c69feda80125c8eb[m
+Author: Gonzalo Corsico <gonzalocorsicocbc@gmail.com>
+Date:   Fri May 1 21:35:41 2026 -0300
+
+    agregado sistema de host y semaforo
+
+[33mcommit 919d462aec12254235189efd378a36f0794bbee0[m
+Author: Gonzalo Corsico <gonzalocorsicocbc@gmail.com>
+Date:   Fri May 1 21:16:10 2026 -0300
+
+    Fix: removed duplicate socket declaration
+
+[33mcommit 0121fd921e3becbfc146afe339b5d737297b29fa[m
+Author: Gonzalo Corsico <gonzalocorsicocbc@gmail.com>
+Date:   Fri May 1 21:08:20 2026 -0300
+
+    Fix socket initialization order in tv.html
+
+[33mcommit 3a8ff39fe0883ad03f67a4481771f355b2249bdf[m
+Author: Gonzalo Corsico <gonzalocorsicocbc@gmail.com>
+Date:   Fri May 1 20:53:54 2026 -0300
+
+    Primer commit de F1 Simulation

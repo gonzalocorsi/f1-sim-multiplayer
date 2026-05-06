@@ -4,14 +4,17 @@
   "description": "Simulador de F1 con Matter.js y Socket.io",
   "main": "server.js",
   "type": "module",
-"scripts": {
-  "dev": "tsx watch src/server.ts",
-  "build": "npx tsc",
-  "start": "node dist/server.js"
-},
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+	"lobby": "tsx src/LobbyServer.ts",
+	"start-all": "concurrently \"npm run lobby\" \"npm run dev\"",
+    "build": "npx tsc",
+    "start": "node dist/server.js"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "matter-js": "^0.19.0",
+    "save-dev": "^0.0.1-security",
     "socket.io": "^4.7.2"
   },
   "devDependencies": {
