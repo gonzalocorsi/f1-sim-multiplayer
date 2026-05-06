@@ -1,21 +1,20 @@
-// 1. Quitá cualquier import de socket.io-client si vas a usar el declare
-import { Room } from './types.js'; 
+import { Room } from './types.js';
 
-// 2. Usamos declare para decirle a TS que "io" vendrá del HTML (CDN)
+// 1. Declaración para el navegador
 declare var io: any;
 
-// 3. Declaramos socket UNA SOLA VEZ
+// 2. Única instancia del socket
 const socket = io();
 
-// En lugar de import { io } from 'socket.io-client', usamos:
-declare var io: any; 
-const socket = io();
+// 3. Referencia al contenedor (usamos el ID que tengas en tu HTML, 'room-container' es el estándar)
+const roomContainer = document.getElementById('room-container');
 
-const socket: Socket = io();
-const roomContainer = document.getElementById('room-list') as HTMLDivElement;
+socket.on('connect', () => {
+    console.log('Conectado al Lobby');
+});
 
+// 4. Actualización de salas
 socket.on('update_rooms', (rooms: Room[]) => {
-    const roomContainer = document.getElementById('room-container'); // Aseguramos que existe
     if (!roomContainer) return;
     
     roomContainer.innerHTML = '';
@@ -23,46 +22,33 @@ socket.on('update_rooms', (rooms: Room[]) => {
     rooms.forEach((room: Room) => {
         const card = document.createElement('div');
         card.className = 'room-card';
+        
+        // Usamos las clases que tenías en tu diseño original
         card.innerHTML = `
             <div class="card-header">
-                <h3>${room.name}</h3>
-                <span class="status ${room.status}">${room.status.toUpperCase()}</span>
+                <h3 class="room-name">${room.name}</h3>
+                <span class="status-badge status-${room.status}">${room.status.toUpperCase()}</span>
             </div>
-            <p>Mapa: <strong>${room.mapName}</strong></p>
-            <div class="capacity">
-                Pilotos: ${room.playerCount} / ${room.maxPlayers}
+            <div class="room-details">
+                <span>Mapa: <strong>${room.mapName}</strong></span>
+                <span>Pilotos: ${room.playerCount} / ${room.maxPlayers}</span>
             </div>
-            <button onclick="joinRoom('${room.id}')">INGRESAR A BOXES</button>
+            <button class="join-btn" onclick="joinRoom('${room.id}')">INGRESAR A BOXES</button>
         `;
         roomContainer.appendChild(card);
     });
 });
 
-// Exponemos la función al window para el onclick del HTML
+// 5. Función para unirse a sala
 (window as any).joinRoom = (roomId: string) => {
     socket.emit('select_room', roomId);
 };
 
-// lobby-client.ts
+// 6. Redirección a la carrera
 socket.on('redirect', (data: { port: number, roomId: string }) => {
-    // Si entraste por 192.168.0.154:4000, host será 192.168.0.154
     const host = window.location.hostname; 
-    
-    // Armamos la URL final
     const destino = `http://${host}:${data.port}/mando?room=${data.roomId}`;
     
     console.log("Redirigiendo a:", destino);
     window.location.href = destino;
 });
-// En lobby-client.ts
-card.innerHTML = `
-    <div class="card-header">
-        <h3 class="room-name">${room.name}</h3>
-        <span class="status-badge status-${room.status}">${room.status.toUpperCase()}</span>
-    </div>
-    <div class="room-details">
-        <span>Mapa: <strong>${room.mapName}</strong></span>
-        <span>Pilotos: ${room.playerCount} / ${room.maxPlayers}</span>
-    </div>
-    <button class="join-btn" onclick="joinRoom('${room.id}')">INGRESAR A BOXES</button>
-`;
