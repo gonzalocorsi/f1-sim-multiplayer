@@ -226,11 +226,31 @@ socket.on('telemetry', (data) => {
     if(data.tireHealth < 20) document.getElementById('tire-bar').style.background = '#ff0000';
     else document.getElementById('tire-bar').style.background = '#ffffff';
 });
+const Haptics = {
+    // Vibración corta y suave para el pasto
+    grass: () => {
+        if ("vibrate" in navigator) {
+            navigator.vibrate(40); 
+        }
+    },
+    // Vibración fuerte y seca para choques
+    collision: () => {
+        if ("vibrate" in navigator) {
+            navigator.vibrate([150, 50, 100]); // Golpe fuerte, pausa corta, golpe medio
+        }
+    }
+};
+
+socket.on('haptic_feedback', (type) => {
+    if (type === 'grass') Haptics.grass();
+    if (type === 'collision') Haptics.collision();
+});
 
 function quitGame() {
     socket.disconnect();
     window.location.href = "/"; // Volver al lobby
 }
+
 </script>
 </body>
 </html>

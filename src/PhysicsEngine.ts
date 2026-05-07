@@ -20,14 +20,15 @@ export class PhysicsEngine {
         this.io = io;
         this.engine = Matter.Engine.create({ gravity: { x: 0, y: 0 } });
 
-        const { Bodies, Composite } = Matter;
+        const { Bodies, Composite, Events } = Matter;
         
-        // Paredes del circuito
+        // 1. Paredes del circuito
         this.trackWalls = [
             Bodies.rectangle(800, 0, 1600, 40, { isStatic: true, label: 'wall' }),
             Bodies.rectangle(800, 900, 1600, 40, { isStatic: true, label: 'wall' }),
             Bodies.rectangle(0, 450, 40, 900, { isStatic: true, label: 'wall' }),
             Bodies.rectangle(1600, 450, 40, 900, { isStatic: true, label: 'wall' }),
+            // El sensor del centro (pasto)
             Bodies.rectangle(800, 450, 850, 250, { 
                 isStatic: true, 
                 isSensor: true, 
@@ -36,7 +37,7 @@ export class PhysicsEngine {
             })
         ];
 
-        // Barrera de neumáticos
+        // 2. Barrera de neumáticos
         const barrierY = 450;
         const tireRadius = 18;
         for (let x = 650; x <= 950; x += tireRadius * 2) {
@@ -47,6 +48,26 @@ export class PhysicsEngine {
         }
 
         Composite.add(this.engine.world, [...this.trackWalls, ...this.tireBarrier]);
+
+        // 3. Sistema de detección de colisiones para Feedback Háptico
+        Events.on(this.engine, 'collisionStart', (event) => {
+            event.pairs.forEach((pair) => {
+                const bodyA = pair.bodyA;
+                const bodyB = pair.bodyB;
+
+                // Identificamos si uno de los cuerpos es un auto
+                const carBody = bodyA.label === 'car' ? bodyA : (bodyB.label === 'car' ? bodyB : null);
+                const otherBody = carBody === bodyA ? bodyB : bodyA;
+
+                // Si chocó contra una pared o neumático (no pasto)
+                if (carBody && otherBody.label !== 'grass_center') {
+                    const car = Array.from(this.players.values()).find(c => c.body === carBody);
+                    if (car) {
+                        this.io.to(car.id).emit('haptic_feedback', 'collision');
+                    }
+                }
+            });
+        });
 
         this.startHighFrequencyLoop();
         this.startLowFrequencyLoop();
@@ -69,7 +90,8 @@ export class PhysicsEngine {
             posY
         );
         
-        // Asignamos la sala
+        // Etiqueta para el motor de colisiones
+        newCar.body.label = 'car';
         (newCar as any).roomId = roomId; 
 
         this.players.set(socketId, newCar);
@@ -94,7 +116,6 @@ export class PhysicsEngine {
         }
     }
 
-    // Método para que el servidor sepa cuántos hay en cada sala
     public getPlayerCount(roomId: string): number {
         return Array.from(this.players.values()).filter(car => (car as any).roomId === roomId).length;
     }
@@ -123,20 +144,28 @@ export class PhysicsEngine {
             this.players.forEach(car => {
                 const px = car.body.position.x;
                 const py = car.body.position.y;
+
+                // Lógica de detección de pasto
                 const onOuterGrass = px < 225 || px > 1375 || py < 175 || py > 725;
-                const collision = Matter.Collision.collides(car.body, this.trackWalls[4]);
+                const collision = Matter.Query.collides(car.body, [this.trackWalls[4]]);
                 
-                car.isOnGrass = collision !== null || onOuterGrass;
+                car.isOnGrass = collision.length > 0 || onOuterGrass;
                 car.checkLap();
 
+                // 1. Enviar telemetría al mando
                 this.io.to(car.id).emit('telemetry', {
                     tireHealth: Math.floor(car.tireHealth * 100),
                     energy: Math.floor(car.energy * 100),
                     speed: Math.floor(car.body.speed * 20),
                     isOnGrass: car.isOnGrass
                 });
+
+                // 2. Feedback de vibración por pasto
+                if (car.isOnGrass && car.body.speed > 2) {
+                    this.io.to(car.id).emit('haptic_feedback', 'grass');
+                }
             });
-        }, 100);
+        }, 150); 
     }
 
     private formatCarData(car: Car) {
