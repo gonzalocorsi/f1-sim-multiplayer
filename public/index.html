@@ -1,196 +1,256 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <title>Mando de Carreras - F1 Pro</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="/socket.io/socket.io.js"></script>
+    <title>F1 PRO - RACE LOBBY</title>
     <style>
-	
-        * { box-sizing: border-box; }
+        :root {
+            --f1-red: #e10600;
+            --f1-black: #15151e;
+            --f1-dark-gray: #38383f;
+            --f1-white: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
-            background: #000; color: #fff; font-family: sans-serif;
-            margin: 0; padding: 0; overflow: hidden;
-            width: 100vw; height: 100vh; display: flex; flex-direction: column;
+            background-color: #000;
+            color: var(--f1-white);
+            font-family: 'Titillium Web', 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
         }
 
-        /* TELEMETRÍA (SIEMPRE ARRIBA) */
-        #telemetry-display {
-            height: 44px; display: flex; justify-content: space-between;
-            align-items: center; padding: 0 12px; background: rgba(17,17,17,0.95);
-            z-index: 10;
-        }
-        .bar-container { width: 55px; height: 7px; background: #333; border-radius: 4px; overflow: hidden; }
-        .bar { height: 100%; transition: width 0.2s; }
-        #tire-bar { background: #fff; }
-        #ers-bar { background: #efff00; }
-        #speedometer { color: #00ff00; font-family: monospace; }
-
-        /* PANTALLA INICIO */
-        #start-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; display: flex; align-items: center; justify-content: center; z-index: 1000;
-        }
-        #start-btn {
-            width: 70%; height: 60px; background: #fff; color: #000;
-            font-weight: bold; border-radius: 15px; display: flex; align-items: center; justify-content: center;
+        /* HEADER ESTILO F1 */
+        header {
+            width: 100%;
+            background: var(--f1-black);
+            padding: 20px;
+            border-bottom: 5px solid var(--f1-red);
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
 
-        /* GAMEPAD LAYOUT - DINÁMICO */
-        #gamepad {
-            display: none; flex: 1; width: 100%;
-            flex-direction: column; /* Vertical: Gas arriba, Reverse medio, Turbo abajo */
+        .logo {
+            font-weight: 900;
+            font-style: italic;
+            font-size: 24px;
+            letter-spacing: -1px;
         }
 
-        /* Orientación Horizontal (MODO VOLANTE) */
-        @media (orientation: landscape) {
-            #gamepad {
-                flex-direction: row; /* Horizontal: Gas izq, Reverse centro, Turbo der */
-            }
-            #gas-zone { border-right: 2px solid #222; border-bottom: none !important; }
-            #reverse-zone { border-right: 2px solid #222; border-bottom: none !important; }
+        .logo span { color: var(--f1-red); }
+
+        /* CONTENEDOR PRINCIPAL */
+        main {
+            width: 90%;
+            max-width: 600px;
+            margin-top: 30px;
         }
 
-        /* ZONAS */
-        #gas-zone {
-            flex: 2; /* Más grande: 50% */
-            background: #220000; display: flex; align-items: center; justify-content: center;
-            border-bottom: 2px solid #222; transition: background 0.1s;
-        }
-        #gas-zone.active { background: #e10600; }
-
-        #reverse-zone {
-            flex: 1; /* 25% */
-            background: #1a1a1a; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; border-bottom: 2px solid #222;
+        .section-title {
+            font-size: 14px;
+            text-transform: uppercase;
+            color: var(--f1-dark-gray);
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+            border-left: 3px solid var(--f1-red);
+            padding-left: 10px;
         }
 
-        #turbo-zone {
-            flex: 1; /* 25% */
-            background: #002233; display: flex; align-items: center; justify-content: center;
-            transition: background 0.1s;
-        }
-        #turbo-zone.active { background: #00a0ff; }
-
-        .btn-label { 
-            font-weight: 900; color: rgba(255,255,255,0.2); 
-            pointer-events: none; text-transform: uppercase; text-align: center;
+        /* LISTADO DE SALAS (Inyectado por TS) */
+        #room-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        #reverse-bar-ui { width: 40%; height: 6px; background: #333; border-radius: 3px; margin-top: 8px; overflow: hidden; }
-        #reverse-fill { height: 100%; width: 0%; background: #ffcc00; }
+        /* CARD DE SALA */
+        .room-card {
+            background: var(--f1-black);
+            border: 1px solid #222;
+            padding: 20px;
+            position: relative;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
 
-        #debug { position: absolute; bottom: 5px; width: 100%; text-align: center; font-size: 10px; color: #444; pointer-events: none; }
+        .room-card:hover {
+            border-color: var(--f1-red);
+            transform: translateX(5px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .room-name {
+            font-size: 18px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-badge {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 2px;
+            font-weight: 800;
+        }
+		.status-disabled { background: #444; color: #888; }
+        .status-waiting { background: #00ff00; color: #000; }
+        .status-racing { background: var(--f1-red); color: #fff; }
+
+        .room-details {
+            display: flex;
+            justify-content: space-between;
+            font-family: monospace;
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .join-btn {
+            margin-top: 15px;
+            width: 100%;
+            padding: 12px;
+            background: transparent;
+            border: 1px solid var(--f1-white);
+            color: var(--f1-white);
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+        }
+
+        .room-card:hover .join-btn {
+            background: var(--f1-white);
+            color: #000;
+        }
+
+        /* FOOTER DE ESTADO */
+        footer {
+            margin-top: auto;
+            padding: 20px;
+            font-size: 10px;
+            color: var(--f1-dark-gray);
+            text-transform: uppercase;
+        }
+
+        /* ANIMACIÓN DE CARGA */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-style: italic;
+            color: var(--f1-dark-gray);
+        }
+		/* MODAL OVERLAY */
+    #device-modal {
+        display: none; /* Oculto por defecto */
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9);
+        z-index: 2000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .modal-content {
+        background: var(--f1-black);
+        border-top: 4px solid var(--f1-red);
+        width: 90%;
+        max-width: 400px;
+        padding: 30px;
+        text-align: center;
+    }
+
+    .modal-title {
+        font-weight: 900;
+        text-transform: uppercase;
+        margin-bottom: 20px;
+        font-size: 20px;
+        letter-spacing: 1px;
+    }
+
+    .device-options {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .option-btn {
+        background: var(--f1-dark-gray);
+        border: none;
+        color: white;
+        padding: 20px;
+        font-weight: bold;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .option-btn:hover { background: var(--f1-red); }
+    .option-btn span { font-size: 10px; opacity: 0.7; font-weight: normal; }
+
+    .btn-cancel {
+        margin-top: 20px;
+        background: transparent;
+        color: #666;
+        border: none;
+        text-transform: uppercase;
+        font-size: 12px;
+        cursor: pointer;
+    }
     </style>
 </head>
 <body>
+    <header>
+        <div class="logo">F1<span>PRO</span> MULTIPLAYER</div>
+    </header>
 
-    <div id="telemetry-display">
-        <div onclick="quitGame()" style="cursor:pointer; background:#e10600; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:10px;">EXIT</div>
-        <div style="display:flex; gap:10px;">
-            <div class="bar-container"><div id="tire-bar" class="bar" style="width:100%"></div></div>
-            <div class="bar-container"><div id="ers-bar" class="bar" style="width:0%"></div></div>
+    <main>
+        <div class="section-title">Servidores Activos</div>
+        <!-- Aquí es donde inyectaremos las salas -->
+        <div id="room-list">
+            <div class="loading">Buscando sesiones de carrera...</div>
         </div>
-        <div id="speedometer">0 KM/H</div>
+    </main>
+
+    <footer>
+        Bahía Blanca Engine v2.0 - 2026
+    </footer>
+
+    <!-- SOLO ESTO AL FINAL -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/js/lobby-client.js"></script>
+
+<div id="device-modal">
+    <div class="modal-content">
+        <div class="modal-title">Seleccionar Rol</div>
+        <div class="device-options">
+            <button class="option-btn" onclick="selectDevice('mando')">
+                📱 Unirse como Mando
+                <span>Usar giroscopio del celular</span>
+            </button>
+            <button class="option-btn" onclick="selectDevice('tv')">
+                📺 Ver como TV
+                <span>Modo espectador / Pantalla grande</span>
+            </button>
+            <button class="option-btn" onclick="selectDevice('solo')">
+                💻 Jugar en PC
+                <span>Teclado y visualización aquí mismo</span>
+            </button>
+        </div>
+        <button class="btn-cancel" onclick="closeModal()">Regresar al Lobby</button>
     </div>
-
-    <div id="start-screen">
-        <div id="start-btn">TOCÁ PARA CONECTAR</div>
-    </div>
-
-    <div id="gamepad">
-        <!-- GAS (50%) -->
-        <div id="gas-zone">
-            <span class="btn-label" style="font-size:40px;">GAS</span>
-        </div>
-
-        <!-- REVERSE (25%) -->
-        <div id="reverse-zone">
-            <span class="btn-label" style="font-size:12px;">REVERSE<br>SWIPE L</span>
-            <div id="reverse-bar-ui"><div id="reverse-fill"></div></div>
-        </div>
-
-        <!-- TURBO (25%) -->
-        <div id="turbo-zone">
-            <span class="btn-label" style="font-size:20px;">TURBO / DRS</span>
-        </div>
-    </div>
-
-    <p id="debug">Iniciando...</p>
-
-    <script>
-        const socket = io();
-        const startScreen = document.getElementById('start-screen');
-        const startBtn = document.getElementById('start-btn');
-        const gamepad = document.getElementById('gamepad');
-        const gasZone = document.getElementById('gas-zone');
-        const reverseZone = document.getElementById('reverse-zone');
-        const turboZone = document.getElementById('turbo-zone');
-        const debug = document.getElementById('debug');
-
-        let isGas = false, isTurbo = false, isReverse = false;
-
-        startBtn.onclick = function() {
-            socket.emit('register_player');
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().then(state => { if(state === 'granted') ready(); }).catch(console.error);
-            } else { ready(); }
-        };
-
-        function ready() {
-            startScreen.style.display = 'none';
-            gamepad.style.display = 'flex';
-            activarSensores();
-        }
-
-        function activarSensores() {
-            window.addEventListener('devicemotion', (event) => {
-                let tilt = event.accelerationIncludingGravity.y || 0;
-                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-                let turnValue = (isIOS ? -tilt : tilt) / 6;
-                turnValue = Math.max(-1, Math.min(1, turnValue));
-                if (Math.abs(turnValue) < 0.1) turnValue = 0;
-
-                socket.emit('drive', { turn: turnValue, gas: isGas, turbo: isTurbo, reverse: isReverse });
-                debug.innerText = `GIRO: ${Math.round(turnValue * 100)}%`;
-            }, true);
-        }
-
-        // --- INPUTS ---
-        gasZone.addEventListener('touchstart', (e) => { e.preventDefault(); isGas = true; gasZone.classList.add('active'); });
-        gasZone.addEventListener('touchend', () => { isGas = false; gasZone.classList.remove('active'); });
-
-        turboZone.addEventListener('touchstart', (e) => { e.preventDefault(); isTurbo = true; turboZone.classList.add('active'); });
-        turboZone.addEventListener('touchend', () => { isTurbo = false; turboZone.classList.remove('active'); });
-
-        let startX = 0;
-        reverseZone.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, {passive: true});
-        reverseZone.addEventListener('touchmove', (e) => {
-            let delta = startX - e.touches[0].clientX;
-            if (delta > 0) {
-                let pull = Math.min(delta / 80, 1);
-                document.getElementById('reverse-fill').style.width = (pull * 100) + '%';
-                if (pull >= 0.9) isReverse = true;
-            }
-        }, {passive: true});
-
-        document.addEventListener('touchend', () => {
-            isReverse = false;
-            document.getElementById('reverse-fill').style.width = '0%';
-        });
-
-        socket.on('telemetry', (data) => {
-            document.getElementById('tire-bar').style.width = data.tireHealth + '%';
-            document.getElementById('ers-bar').style.width = data.energy + '%';
-            document.getElementById('speedometer').innerText = data.speed + " KM/H";
-        });
-		function quitGame() {
-		// Detenemos el socket antes de irnos para evitar conexiones fantasma
-    socket.disconnect();
-
-    const host = window.location.hostname; 
-    window.location.href = `http://${host}:4000`; // Vuelve al servidor central
-
-}
-    </script>
+</div>
 </body>
 </html>

@@ -69,17 +69,26 @@
     window.addEventListener('resize', resize);
     resize();
 
-    // 3. COMUNICACIÓN
-    socket.on('connect', () => {
-        console.log("Conectado al servidor");
-        document.getElementById('loading-screen').style.display = 'none';
-    });
+// 3. COMUNICACIÓN ACTUALIZADA
+const urlParams = new URLSearchParams(window.location.search);
+const roomId = urlParams.get('room') || 'default-room';
 
-    socket.on('state_update', (data) => {
-        gameState = data;
-        const label = document.getElementById('player-count');
-        if(label && data.players) label.innerText = `${data.players.length} PILOTS ON TRACK`;
-    });
+socket.on('connect', () => {
+    console.log("Conectado al servidor - Sala:", roomId);
+    document.getElementById('loading-screen').style.display = 'none';
+    
+    // NOTIFICAR AL MAESTRO: Soy una TV y quiero ver esta sala
+    socket.emit('join_session', { roomId, type: 'tv' });
+});
+
+// El evento ahora es el mismo, pero solo recibiremos datos de nuestra sala
+socket.on('state_update', (data) => {
+    gameState = data;
+    const label = document.getElementById('player-count');
+    if(label && data.players) {
+        label.innerText = `${data.players.length} PILOTS ON TRACK IN ${roomId.toUpperCase()}`;
+    }
+});
 
     // 4. FUNCIONES DE DIBUJO
 	

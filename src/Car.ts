@@ -132,4 +132,21 @@ checkLap() {
     }
     this.inFinishZone = atFinish;
 }
+
+public destroy(world: Matter.World) {
+    Matter.Composite.remove(world, this.body);
+}
+getData() {
+    return {
+        id: this.id,
+        x: this.body.position.x,
+        y: this.body.position.y,
+        angle: this.body.angle,
+        color: this.color,
+        isTurbo: this.isTurbo,
+        laps: this.laps,
+        isOnGrass: this.isOnGrass,
+        speed: this.body.speed
+    };
+}
 }

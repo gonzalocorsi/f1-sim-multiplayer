@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mando de Carreras - F1 Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+	
+        * { box-sizing: border-box; }
+        body {
+            background: #000; color: #fff; font-family: sans-serif;
+            margin: 0; padding: 0; overflow: hidden;
+            width: 100vw; height: 100vh; display: flex; flex-direction: column;
+        }
+
+        /* TELEMETRÍA (SIEMPRE ARRIBA) */
+        #telemetry-display {
+            height: 44px; display: flex; justify-content: space-between;
+            align-items: center; padding: 0 12px; background: rgba(17,17,17,0.95);
+            z-index: 10;
+        }
+        .bar-container { width: 55px; height: 7px; background: #333; border-radius: 4px; overflow: hidden; }
+        .bar { height: 100%; transition: width 0.2s; }
+        #tire-bar { background: #fff; }
+        #ers-bar { background: #efff00; }
+        #speedometer { color: #00ff00; font-family: monospace; }
+
+        /* PANTALLA INICIO */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; display: flex; align-items: center; justify-content: center; z-index: 1000;
+        }
+        #start-btn {
+            width: 70%; height: 60px; background: #fff; color: #000;
+            font-weight: bold; border-radius: 15px; display: flex; align-items: center; justify-content: center;
+        }
+
+        /* GAMEPAD LAYOUT - DINÁMICO */
+        #gamepad {
+            display: none; flex: 1; width: 100%;
+            flex-direction: column; /* Vertical: Gas arriba, Reverse medio, Turbo abajo */
+        }
+
+        /* Orientación Horizontal (MODO VOLANTE) */
+        @media (orientation: landscape) {
+            #gamepad {
+                flex-direction: row; /* Horizontal: Gas izq, Reverse centro, Turbo der */
+            }
+            #gas-zone { border-right: 2px solid #222; border-bottom: none !important; }
+            #reverse-zone { border-right: 2px solid #222; border-bottom: none !important; }
+        }
+
+        /* ZONAS */
+        #gas-zone {
+            flex: 2; /* Más grande: 50% */
+            background: #220000; display: flex; align-items: center; justify-content: center;
+            border-bottom: 2px solid #222; transition: background 0.1s;
+        }
+        #gas-zone.active { background: #e10600; }
+
+        #reverse-zone {
+            flex: 1; /* 25% */
+            background: #1a1a1a; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; border-bottom: 2px solid #222;
+        }
+
+        #turbo-zone {
+            flex: 1; /* 25% */
+            background: #002233; display: flex; align-items: center; justify-content: center;
+            transition: background 0.1s;
+        }
+        #turbo-zone.active { background: #00a0ff; }
+
+        .btn-label { 
+            font-weight: 900; color: rgba(255,255,255,0.2); 
+            pointer-events: none; text-transform: uppercase; text-align: center;
+        }
+
+        #reverse-bar-ui { width: 40%; height: 6px; background: #333; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+        #reverse-fill { height: 100%; width: 0%; background: #ffcc00; }
+
+        #debug { position: absolute; bottom: 5px; width: 100%; text-align: center; font-size: 10px; color: #444; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="telemetry-display">
+        <div onclick="quitGame()" style="cursor:pointer; background:#e10600; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:10px;">EXIT</div>
+        <div style="display:flex; gap:10px;">
+            <div class="bar-container"><div id="tire-bar" class="bar" style="width:100%"></div></div>
+            <div class="bar-container"><div id="ers-bar" class="bar" style="width:0%"></div></div>
+        </div>
+        <div id="speedometer">0 KM/H</div>
+    </div>
+
+    <div id="start-screen">
+        <div id="start-btn">TOCÁ PARA CONECTAR</div>
+    </div>
+
+    <div id="gamepad">
+        <!-- GAS (50%) -->
+        <div id="gas-zone">
+            <span class="btn-label" style="font-size:40px;">GAS</span>
+        </div>
+
+        <!-- REVERSE (25%) -->
+        <div id="reverse-zone">
+            <span class="btn-label" style="font-size:12px;">REVERSE<br>SWIPE L</span>
+            <div id="reverse-bar-ui"><div id="reverse-fill"></div></div>
+        </div>
+
+        <!-- TURBO (25%) -->
+        <div id="turbo-zone">
+            <span class="btn-label" style="font-size:20px;">TURBO / DRS</span>
+        </div>
+    </div>
+
+    <p id="debug">Iniciando...</p>
+
+   <script>
+const socket = io();
+
+// 1. CONFIGURACIÓN DE SALA Y ESTADO
+const urlParams = new URLSearchParams(window.location.search);
+let roomId = urlParams.get('room'); 
+
+if (!roomId) {
+    roomId = window.location.search.substring(1) || 'gp-argentina';
+}
+
+console.log("Conectando a la sala:", roomId);
+
+const startScreen = document.getElementById('start-screen');
+const startBtn = document.getElementById('start-btn');
+const gamepad = document.getElementById('gamepad');
+const gasZone = document.getElementById('gas-zone');
+const reverseZone = document.getElementById('reverse-zone');
+const turboZone = document.getElementById('turbo-zone');
+const debug = document.getElementById('debug');
+
+let isGas = false, isTurbo = false, isReverse = false;
+let lastEmitTime = 0; 
+
+// 2. CONEXIÓN Y PERMISOS (CORREGIDO)
+startBtn.onclick = function() {
+    // Unirse a la sala
+    socket.emit('join_session', { roomId, type: 'mando' });
+
+    // Permisos de sensores
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+            .then(state => { 
+                if(state === 'granted') ready(); 
+                else alert("Se requieren permisos de movimiento para manejar.");
+            })
+            .catch(err => {
+                console.error("Error en sensores:", err);
+                ready(); // Intentar arrancar igual
+            });
+    } else { 
+        ready(); 
+    }
+};
+
+function ready() {
+    startScreen.style.display = 'none';
+    gamepad.style.display = 'flex';
+    activarSensores();
+}
+
+// 3. SENSORES
+function activarSensores() {
+    window.addEventListener('devicemotion', (event) => {
+        const now = Date.now();
+        if (now - lastEmitTime < 33) return; 
+        lastEmitTime = now;
+
+        let tilt = event.accelerationIncludingGravity.y || 0;
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        
+        let turnValue = (isIOS ? -tilt : tilt) / 6;
+        turnValue = Math.max(-1, Math.min(1, turnValue));
+        
+        if (Math.abs(turnValue) < 0.1) turnValue = 0;
+
+        socket.emit('drive', { 
+            turn: turnValue, 
+            gas: isGas, 
+            turbo: isTurbo, 
+            reverse: isReverse 
+        });
+        
+        debug.innerText = `GIRO: ${Math.round(turnValue * 100)}%`;
+    }, true);
+}
+
+// 4. EVENTOS DE TOUCH (GAS, TURBO, REVERSA)
+gasZone.addEventListener('touchstart', (e) => { e.preventDefault(); isGas = true; gasZone.classList.add('active'); });
+gasZone.addEventListener('touchend', () => { isGas = false; gasZone.classList.remove('active'); });
+
+turboZone.addEventListener('touchstart', (e) => { e.preventDefault(); isTurbo = true; turboZone.classList.add('active'); });
+turboZone.addEventListener('touchend', () => { isTurbo = false; turboZone.classList.remove('active'); });
+
+let startX = 0;
+reverseZone.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, {passive: true});
+reverseZone.addEventListener('touchmove', (e) => {
+    let delta = startX - e.touches[0].clientX;
+    if (delta > 0) {
+        let pull = Math.min(delta / 80, 1);
+        document.getElementById('reverse-fill').style.width = (pull * 100) + '%';
+        if (pull >= 0.9) isReverse = true;
+    }
+}, {passive: true});
+
+document.addEventListener('touchend', () => {
+    isReverse = false;
+    document.getElementById('reverse-fill').style.width = '0%';
+});
+
+// 5. TELEMETRÍA Y SALIDA
+socket.on('telemetry', (data) => {
+    document.getElementById('tire-bar').style.width = data.tireHealth + '%';
+    document.getElementById('ers-bar').style.width = data.energy + '%';
+    document.getElementById('speedometer').innerText = data.speed + " KM/H";
+    
+    if(data.tireHealth < 20) document.getElementById('tire-bar').style.background = '#ff0000';
+    else document.getElementById('tire-bar').style.background = '#ffffff';
+});
+
+function quitGame() {
+    socket.disconnect();
+    window.location.href = "/"; // Volver al lobby
+}
+</script>
+</body>
+</html>
