@@ -92,8 +92,7 @@ io.on('connection', (socket) => {
 });
 
 // 7. PUERTO (Render usa process.env.PORT)
-const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Corriendo en: http://localhost:${PORT}`);
-    console.log(`📁 Buscando archivos en: ${path.join(__dirname, '../public')}`);
+const PORT = parseInt(process.env.PORT || '3000', 10);
+httpServer.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`🚀 Corriendo en el puerto ${PORT}`);
 });
