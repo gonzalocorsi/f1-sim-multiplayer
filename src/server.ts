@@ -5,14 +5,22 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { PhysicsEngine } from './PhysicsEngine.js';
 
+// 1. CONFIGURACIÓN DE RUTAS (ESM)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-app.use(express.static(path.join(__dirname, '../public')));
 
+// 2. INICIALIZACIÓN DE LA APP (Importante: Declarar 'app' antes de usarla)
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer);
+const io = new Server(httpServer, {
+    cors: { origin: "*" }
+});
 
+// 3. CONFIGURACIÓN DE ESTÁTICOS
+// Buscamos 'public' un nivel arriba de 'dist' (donde vive este archivo compilado)
+app.use(express.static(path.join(__dirname, '../public')));
+
+// 4. MOTOR DE FÍSICA Y DATOS
 const physics = new PhysicsEngine(io); 
 
 const AVAILABLE_SESSIONS = [
@@ -22,7 +30,6 @@ const AVAILABLE_SESSIONS = [
 ];
 
 // --- Función Maestra de Sincronización ---
-// Esta función asegura que el Lobby siempre reciba los nombres que espera (playerCount, mapName, etc.)
 const broadcastRoomUpdate = () => {
     const dataToSend = AVAILABLE_SESSIONS.map(s => ({
         ...s,
@@ -32,9 +39,7 @@ const broadcastRoomUpdate = () => {
     io.emit('update_rooms', dataToSend);
 };
 
-
-
-// Rutas
+// 5. RUTAS API
 app.get('/api/servers', (req, res) => {
     const data = AVAILABLE_SESSIONS.map(s => ({
         ...s,
@@ -43,9 +48,10 @@ app.get('/api/servers', (req, res) => {
     res.json(data);
 });
 
+// Ruta raíz para servir el index.html expresamente si es necesario
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 
-// --- Socket.io ---
+// 6. LÓGICA DE SOCKETS
 io.on('connection', (socket) => {
     console.log(`📡 Conectado: ${socket.id}`);
 
@@ -55,7 +61,14 @@ io.on('connection', (socket) => {
         playerCount: physics.getPlayerCount(s.id),
         status: s.status === 'coming_soon' ? 'coming_soon' : (physics.getPlayerCount(s.id) > 0 ? 'racing' : 'waiting')
     }));
-    socket.emit('update_rooms', initialData, lobbyManager.getRooms());
+    
+    // Eliminada la referencia inexistente a lobbyManager
+    socket.emit('update_rooms', initialData);
+
+    // Escuchar pedido manual por si el lag de Render lo requiere
+    socket.on('get_initial_rooms', () => {
+        socket.emit('update_rooms', initialData);
+    });
 
     socket.on('join_session', ({ roomId, type }) => {
         socket.rooms.forEach(room => { if (room !== socket.id) socket.leave(room); });
@@ -63,8 +76,6 @@ io.on('connection', (socket) => {
         
         if (type === 'mando' || type === 'solo' || type === 'tv') {
             if (type !== 'tv') physics.addCar(socket.id, roomId);
-            
-            // Actualizar a todos los que están en el Lobby
             broadcastRoomUpdate();
         }
     });
@@ -80,7 +91,9 @@ io.on('connection', (socket) => {
     });
 });
 
-const PORT = 3000;
-httpServer.listen(PORT, () => {
-    console.log(`🚀 Corriendo en http://localhost:${PORT}`);
+// 7. PUERTO (Render usa process.env.PORT)
+const PORT = process.env.PORT || 3000;
+httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Corriendo en: http://localhost:${PORT}`);
+    console.log(`📁 Buscando archivos en: ${path.join(__dirname, '../public')}`);
 });
