@@ -7,6 +7,7 @@ import { PhysicsEngine } from './PhysicsEngine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+app.use(express.static(path.join(__dirname, '../public')));
 
 const app = express();
 const httpServer = createServer(app);
@@ -31,7 +32,7 @@ const broadcastRoomUpdate = () => {
     io.emit('update_rooms', dataToSend);
 };
 
-app.use(express.static(path.join(__dirname, '../public')));
+
 
 // Rutas
 app.get('/api/servers', (req, res) => {
@@ -54,7 +55,7 @@ io.on('connection', (socket) => {
         playerCount: physics.getPlayerCount(s.id),
         status: s.status === 'coming_soon' ? 'coming_soon' : (physics.getPlayerCount(s.id) > 0 ? 'racing' : 'waiting')
     }));
-    socket.emit('update_rooms', initialData);
+    socket.emit('update_rooms', initialData, lobbyManager.getRooms());
 
     socket.on('join_session', ({ roomId, type }) => {
         socket.rooms.forEach(room => { if (room !== socket.id) socket.leave(room); });
