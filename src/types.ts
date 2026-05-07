@@ -20,7 +20,7 @@ export interface PlayerState {
 export interface Room {
     id: string;
     name: string;
-    port: number;
+    port?: number;
     playerCount: number;
     maxPlayers: number;
     mapName: string;
