@@ -12,7 +12,7 @@ class LobbyServer {
     private app: Application;
     private httpServer: HttpServer;
     private io: Server;
-    private readonly PORT: number = 4000;
+    private readonly PORT: number = 3000;
 
     // "Base de datos" temporal de salas
     private rooms: Room[] = [
@@ -53,10 +53,20 @@ class LobbyServer {
         this.setupStatusEndpoint();
     }
 
-    private setupRoutes(): void {
-        // Sirve la carpeta del lobby (donde está tu lista de salas)
-        this.app.use(express.static(path.join(__dirname, '../public-lobby')));
-    }
+private setupRoutes(): void {
+    const rootPath = path.resolve(__dirname, '..');
+    
+    // 1. Carpeta public (HTML y CSS)
+    this.app.use(express.static(path.join(rootPath, 'public')));
+    
+    // 2. Servir carpetas para JS/TS
+    // Si usas tsx, el navegador va a buscar los archivos, pero recordá 
+    // que el navegador SOLO entiende .js. 
+    this.app.use('/dist', express.static(path.join(rootPath, 'dist')));
+    
+    // TIP: Si quieres que funcione siempre, asegúrate de correr 'tsc -w' 
+    // en OTRA terminal para que los .js en /dist existan siempre.
+}
 
     private setupStatusEndpoint(): void {
         // Endpoint que llamará el servidor de carrera (puerto 3000) al Lobby (puerto 4000)
@@ -89,6 +99,27 @@ class LobbyServer {
                     socket.emit('redirect', { port: room.port, roomId: room.id });
                 }
             });
+			
+			socket.on('create_room', (data) => {
+				const roomId = `gp-${Date.now()}`;
+        const newRoom: Room = {
+            id: roomId,
+            name: data.name,
+            mapName: data.mapName,
+            port: 3000, // O el puerto que asignes
+            playerCount: 0,
+            maxPlayers: 12,
+            status: 'waiting'
+        };
+		
+		this.rooms.push(newRoom);
+         console.log(`Nueva carrera creada: ${newRoom.name}`);
+        // IMPORTANTE: Avisar a TODOS los conectados que hay una sala nueva
+        this.io.emit('update_rooms', this.rooms); 
+		socket.emit('redirect', { port: newRoom.port, roomId: newRoom.id });
+		
+		});
+       
 
             socket.on('disconnect', () => {
                 console.log(`Usuario salió del lobby: ${socket.id}`);

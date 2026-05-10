@@ -44,4 +44,8 @@ export class LobbyManager {
     public getRoom(roomId: string): Room | undefined {
         return this.rooms.get(roomId);
     }
+	
+	public addRoom(newRoom: Room) {
+        this.rooms.set(newRoom.id, newRoom);
+    }
 }

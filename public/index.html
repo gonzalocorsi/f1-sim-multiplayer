@@ -150,7 +150,7 @@
         }
 		/* MODAL OVERLAY */
     #device-modal {
-        display: none; /* Oculto por defecto */
+        display: flex; /* Oculto por defecto */
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.9);
@@ -214,6 +214,9 @@
 <body>
     <header>
         <div class="logo">F1<span>PRO</span> MULTIPLAYER</div>
+		<button id="btn-change-role" onclick="openModalForce()" style="margin-top: 10px; background: none; border: 1px solid #444; color: #888; font-size: 10px; cursor: pointer; padding: 5px 10px; text-transform: uppercase;">
+        ⚙️ Cambiar Modalidad (Actual: <span id="current-role-text">-</span>)
+    </button>
     </header>
 
     <main>
@@ -222,6 +225,11 @@
         <div id="room-list">
             <div class="loading">Buscando sesiones de carrera...</div>
         </div>
+		
+		<!-- BOTÓN NUEVO: Oculto por defecto -->
+    <button id="btn-create-race" style="display: none; width: 100%; margin-top: 20px; padding: 15px; background-color: var(--f1-red); color: white; border: none; font-weight: 900; text-transform: uppercase; cursor: pointer; letter-spacing: 1px; font-style: italic;" onclick="window.location.href='/setup-race.html'">
+        ➕ Crear Nueva Carrera
+    </button>
     </main>
 
     <footer>
@@ -230,11 +238,12 @@
 
     <!-- SOLO ESTO AL FINAL -->
     <script src="/socket.io/socket.io.js"></script>
+	<script type="module" src="dist/setup-race.js"></script>
     <script type="module" src="/js/lobby-client.js"></script>
 
-<div id="device-modal">
+<div id="device-modal" style="display: flex;"> 
     <div class="modal-content">
-        <div class="modal-title">Seleccionar Rol</div>
+        <div class="modal-title">Seleccionar Rol de Juego</div>
         <div class="device-options">
             <button class="option-btn" onclick="selectDevice('mando')">
                 📱 Unirse como Mando
@@ -249,7 +258,7 @@
                 <span>Teclado y visualización aquí mismo</span>
             </button>
         </div>
-        <button class="btn-cancel" onclick="closeModal()">Regresar al Lobby</button>
+        <button id="btn-cerrar-modal" class="btn-cancel" style="display:none;" onclick="closeModal()">Mantener actual</button>
     </div>
 </div>
 </body>

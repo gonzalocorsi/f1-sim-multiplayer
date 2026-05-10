@@ -7,8 +7,10 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "lobby": "tsx src/LobbyServer.ts",
+	"build:server": "tsc",
+    "build:client": "tsc --project tsconfig.client.json",
     "start-all": "concurrently \"npm run lobby\" \"npm run dev\"",
-    "build": "tsc",
+    "build": "npm run build:server && npm run build:client",
     "start": "node dist/server.js"
   },
   "dependencies": {

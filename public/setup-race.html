@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Sim Lobby</title>
+
+    <style>
+	:root {
+    --f1-red: #e10600;
+    --f1-black: #15151e;
+    --f1-white: #ffffff;
+    --f1-grey: #38383f;
+}
+
+body {
+    background-color: var(--f1-black);
+    color: var(--f1-white);
+    font-family: 'Titillium Web', sans-serif; /* La fuente típica de F1 */
+    margin: 0;
+    padding: 20px;
+}
+
+.section-title {
+    border-bottom: 2px solid var(--f1-grey);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    font-style: italic;
+}
+
+/* Estilos para las cards que inyecta el JS */
+.room-card {
+    background: var(--f1-grey);
+    padding: 15px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 4px;
+}
+
+.status-active { color: #00ff00; }
+        /* ESTILOS ADICIONALES PARA EL FORMULARIO DE CREACIÓN */
+        .create-race-form {
+            background: var(--f1-black);
+            padding: 20px;
+            margin-bottom: 40px;
+            border-left: 4px solid var(--f1-red);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #888;
+            letter-spacing: 1px;
+        }
+
+        input, select {
+            background: #222;
+            border: 1px solid #444;
+            padding: 10px;
+            color: white;
+            font-family: inherit;
+            outline: none;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--f1-red);
+        }
+
+        .btn-primary {
+            grid-column: span 2;
+            background: var(--f1-red);
+            color: white;
+            border: none;
+            padding: 12px;
+            font-weight: 900;
+            text-transform: uppercase;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: opacity 0.2s;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .full-width { grid-column: span 2; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">F1<span>SIMULATOR</span></div>
+    </header>
+
+    <main>
+        <!-- SECCIÓN: CREAR CARRERA -->
+        <section>
+            <h2 class="section-title">New Session</h2>
+            <form id="create-room-form" class="create-race-form">
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label for="room-name">Grand Prix Name</label>
+                        <input type="text" id="room-name" placeholder="e.g. Interlagos Special" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="map-select">Circuit</label>
+                        <select id="map-select">
+                            <option value="Circuito del Puerto">Bahía Blanca</option>
+                            <option value="Autodromo Nazionale">Monza</option>
+                            <option value="Spa-Francorchamps">Spa-Francorchamps</option>
+                            <option value="Suzuka Circuit">Suzuka</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="laps-count">Laps</label>
+                        <input type="number" id="laps-count" min="1" max="50" value="5">
+                    </div>
+
+                    <button type="submit" class="btn-primary">Initialize Engine</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- SECCIÓN: LOBBY -->
+        <section>
+            <h2 class="section-title">Live Sessions</h2>
+            <div id="room-list">
+                <!-- Aquí el LobbyManager.ts inyectará las Room Cards -->
+                <div class="loading">Scanning for active tracks...</div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        System Status: Connected | 2026 Racing Protocol
+    </footer>
+
+    <!-- MODAL DE DISPOSITIVO (Existente en tu CSS) -->
+    <div id="device-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-title">Select Input Unit</div>
+            <div class="device-options">
+                <button class="option-btn">
+                    Smartphone
+                    <span>Use as Virtual Wheel</span>
+                </button>
+                <button class="option-btn">
+                    Desktop
+                    <span>Keyboard Controls</span>
+                </button>
+            </div>
+            <button class="btn-cancel" onclick="document.getElementById('device-modal').style.display='none'">Abort</button>
+        </div>
+    </div>
+
+   <!-- Al final del body -->
+   
+    <script src="/socket.io/socket.io.js"></script>
+<script src="/js/setup-race.js"></script>  <!-- sin type="module" -->
+</body>
+</html>

@@ -25,6 +25,7 @@ export interface Room {
     maxPlayers: number;
     mapName: string;
     status: 'waiting' | 'racing' | 'finished'| 'coming_soon';
+	hadPlayers?: boolean; 
 }
 
 export interface RedirectData {

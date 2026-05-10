@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PhysicsEngine } from './PhysicsEngine.js';
+import { Room } from './types.js';
 
 // 1. CONFIGURACIÓN DE RUTAS (ESM)
 const __filename = fileURLToPath(import.meta.url);
@@ -19,31 +20,42 @@ const io = new Server(httpServer, {
 // 3. CONFIGURACIÓN DE ESTÁTICOS
 // Buscamos 'public' un nivel arriba de 'dist' (donde vive este archivo compilado)
 app.use(express.static(path.join(__dirname, '../public')));
+app.use('/dist', express.static(path.join(__dirname, '../dist')));
+
 
 // 4. MOTOR DE FÍSICA Y DATOS
 const physics = new PhysicsEngine(io); 
 
-const AVAILABLE_SESSIONS = [
-    { id: 'gp-argentina', name: 'GP de Argentina', mapName: 'Bahía Blanca', maxPlayers: 20, status: 'waiting' },
-    { id: 'gp-monaco', name: 'GP de Mónaco', mapName: 'Monte Carlo', maxPlayers: 20, status: 'coming_soon' },
-    { id: 'interlagos', name: 'GP de Brasil', mapName: 'Interlagos', maxPlayers: 20, status: 'coming_soon' }
+// Cambiamos a let y tipamos con Room
+
+
+let rooms: Room[] = [
+    { 
+        id: 'gp-argentina', 
+        name: 'GP de Argentina', 
+        mapName: 'Bahía Blanca', 
+        maxPlayers: 20, 
+        playerCount: 0,
+        status: 'waiting' 
+    },
 ];
 
-// --- Función Maestra de Sincronización ---
 const broadcastRoomUpdate = () => {
-    const dataToSend = AVAILABLE_SESSIONS.map(s => ({
-        ...s,
-        playerCount: physics.getPlayerCount(s.id),
-        status: s.status === 'coming_soon' ? 'coming_soon' : (physics.getPlayerCount(s.id) > 0 ? 'racing' : 'waiting')
+    const dataToSend = rooms.map(r => ({
+        ...r,
+        playerCount: physics.getPlayerCount(r.id),
+        status: r.status === 'coming_soon' ? 'coming_soon' 
+              : (physics.getPlayerCount(r.id) > 0 ? 'racing' : 'waiting')
     }));
     io.emit('update_rooms', dataToSend);
 };
 
+
 // 5. RUTAS API
 app.get('/api/servers', (req, res) => {
-    const data = AVAILABLE_SESSIONS.map(s => ({
-        ...s,
-        playerCount: physics.getPlayerCount(s.id)
+    const data = rooms.map(r => ({
+        ...r,
+        playerCount: physics.getPlayerCount(r.id)
     }));
     res.json(data);
 });
@@ -56,19 +68,19 @@ io.on('connection', (socket) => {
     console.log(`📡 Conectado: ${socket.id}`);
 
     // ENVIAR DATOS INICIALES AL CONECTAR
-    const initialData = AVAILABLE_SESSIONS.map(s => ({
-        ...s,
-        playerCount: physics.getPlayerCount(s.id),
-        status: s.status === 'coming_soon' ? 'coming_soon' : (physics.getPlayerCount(s.id) > 0 ? 'racing' : 'waiting')
-    }));
-    
+ socket.emit('update_rooms', rooms.map(r => ({
+    ...r,
+    playerCount: physics.getPlayerCount(r.id),
+    status: r.status === 'coming_soon' ? 'coming_soon'
+          : (physics.getPlayerCount(r.id) > 0 ? 'racing' : 'waiting')
+})));
     // Eliminada la referencia inexistente a lobbyManager
-    socket.emit('update_rooms', initialData);
+
 
     // Escuchar pedido manual por si el lag de Render lo requiere
-    socket.on('get_initial_rooms', () => {
-        socket.emit('update_rooms', initialData);
-    });
+socket.on('get_initial_rooms', () => {
+    broadcastRoomUpdate();
+});
 
     socket.on('join_session', ({ roomId, type }) => {
         socket.rooms.forEach(room => { if (room !== socket.id) socket.leave(room); });
@@ -76,6 +88,9 @@ io.on('connection', (socket) => {
         
         if (type === 'mando' || type === 'solo' || type === 'tv') {
             if (type !== 'tv') physics.addCar(socket.id, roomId);
+			// Marcar que esta sala tuvo jugadores
+        const room = rooms.find(r => r.id === roomId);
+        if (room) room.hadPlayers = true;
             broadcastRoomUpdate();
         }
     });
@@ -88,7 +103,40 @@ io.on('connection', (socket) => {
         physics.removeCar(socket.id);
         broadcastRoomUpdate();
         console.log(`❌ Desconectado: ${socket.id}`);
+		    // Limpiar salas vacías (excepto las predefinidas)
+    rooms = rooms.filter(r => 
+        r.id === 'gp-argentina' ||  // las fijas que quieras mantener siempre
+		    !r.hadPlayers ||                      // salas nuevas sin nadie aún → mantener
+
+        physics.getPlayerCount(r.id) > 0
+    );
+    
+    broadcastRoomUpdate();
+    console.log(`❌ Desconectado: ${socket.id}`);
     });
+	
+	
+	socket.on('create_room', (data: { name: string; mapName: string; laps: number }) => {
+    const roomId = `room-${Date.now()}`;
+    
+    const newRoom: Room = {
+        id: roomId,
+        name: data.name,
+        mapName: `${data.mapName} · ${data.laps} vueltas`,
+        playerCount: 0,
+        maxPlayers: 12,
+        status: 'waiting'
+    };
+
+    rooms.push(newRoom);
+    console.log(`Nueva sala creada: ${newRoom.name}`);
+    
+    // Avisamos a todos que hay sala nueva
+    broadcastRoomUpdate();
+    
+    // Al creador lo redirigimos directo
+    socket.emit('room_created', { roomId });
+});
 });
 
 // 7. PUERTO (Render usa process.env.PORT)
