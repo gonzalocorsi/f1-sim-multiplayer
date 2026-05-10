@@ -38,13 +38,13 @@ function renderLobby(rooms: Room[]) {
         roomListContainer.appendChild(card);
     });
 	// Fuera del forEach, una sola vez
-roomListContainer.addEventListener('click', (e) => {
+/*roomListContainer.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('.join-btn') as HTMLElement;
     if (!btn) return;
     const roomId = btn.dataset.roomId!;
     socket.emit('join_session', { roomId, type: 'mando' });
     window.location.href = `/mando.html?room=${roomId}`;
-});
+});*/
 }
 
 // ── 2. CREAR SALA ──────────────────────────────────────────────────────────
@@ -68,8 +68,8 @@ socket.on('room_created', ({ roomId }: { roomId: string }) => {
 });
 
 // ── 4. UNIRSE A UNA SALA EXISTENTE (botón "Entrar") ────────────────────────
-//(window as any).joinRoom = (roomId: string) => {
+(window as any).joinRoom = (roomId: string) => {
     // Usamos join_session que ya tenés implementado en server.ts
-  //  socket.emit('join_session', { roomId, type: 'mando' });
-    //window.location.href = `/${targetPage}.html?room=${roomId}`;
-//};
+    socket.emit('join_session', { roomId, type: 'mando' });
+    indow.location.href = `/mando.html?room=${roomId}`;
+};
