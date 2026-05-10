@@ -43,7 +43,7 @@ roomListContainer.addEventListener('click', (e) => {
     if (!btn) return;
     const roomId = btn.dataset.roomId!;
     socket.emit('join_session', { roomId, type: 'mando' });
-    window.location.href = `/game.html?room=${roomId}`;
+    window.location.href = `/mando.html?room=${roomId}`;
 });
 }
 
@@ -64,12 +64,12 @@ if (createForm) {
 // ── 3. RESPUESTA DEL SERVIDOR AL CREADOR ──────────────────────────────────
 socket.on('room_created', ({ roomId }: { roomId: string }) => {
     // El creador va directo al joystick
-    window.location.href = `/game.html?room=${roomId}`;
+    window.location.href = `/mando.html?room=${roomId}`;
 });
 
 // ── 4. UNIRSE A UNA SALA EXISTENTE (botón "Entrar") ────────────────────────
 (window as any).joinRoom = (roomId: string) => {
     // Usamos join_session que ya tenés implementado en server.ts
     socket.emit('join_session', { roomId, type: 'mando' });
-    window.location.href = `/game.html?room=${roomId}`;
+    window.location.href = `/mando.html?room=${roomId}`;
 };
