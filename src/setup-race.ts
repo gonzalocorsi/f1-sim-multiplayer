@@ -71,5 +71,5 @@ socket.on('room_created', ({ roomId }: { roomId: string }) => {
 (window as any).joinRoom = (roomId: string) => {
     // Usamos join_session que ya tenés implementado en server.ts
     socket.emit('join_session', { roomId, type: 'mando' });
-    window.location.href = `/mando.html?room=${roomId}`;
+    window.location.href = `/${targetPage}.html?room=${roomId}`;
 };
