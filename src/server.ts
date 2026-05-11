@@ -74,7 +74,12 @@ io.on('connection', (socket) => {
         broadcastRoomUpdate();
     });
 
-socket.on('join_session', ({ roomId, type }) => {
+socket.on('join_session', ({ roomId, type, creatorToken }) => {
+    console.log(`join_session → type:${type} roomId:${roomId} token:${creatorToken}`);
+	    const room = rooms.find(r => r.id === roomId);
+
+    console.log(`room.creatorId: ${room?.creatorId}`);
+
     socket.rooms.forEach(room => { if (room !== socket.id) socket.leave(room); });
     socket.join(roomId);
 
@@ -82,9 +87,16 @@ socket.on('join_session', ({ roomId, type }) => {
         if (type !== 'tv') physics.addCar(socket.id, roomId);
         
         const room = rooms.find(r => r.id === roomId);
-        if (room) room.hadPlayers = true;
-        
-        if (type === 'mando' && room?.creatorId === socket.id) {
+        if (room) {
+            room.hadPlayers = true;
+            // Lockear salas custom (las que tienen creatorId) hasta que el creador inicie
+            if (room.creatorId && room.status === 'waiting') {
+                physics.setRoomLocked(roomId, true); // ← esto bloquea el input hasta start_race
+            }
+        }
+ // ← Identificar creador por token en vez de socketId
+        if (type === 'mando' && creatorToken && room?.creatorId === creatorToken) {
+            room.creatorId = socket.id; // actualizar al socketId real
             socket.emit('you_are_creator');
         }
         
@@ -105,13 +117,15 @@ socket.on('join_session', ({ roomId, type }) => {
             playerCount: 0,
             maxPlayers: 12,
             laps: data.laps,
-            creatorId: socket.id,
+            creatorId: roomId,
             status: 'waiting'
         };
         rooms.push(newRoom);
         console.log(`Nueva sala creada: ${newRoom.name}`);
+		    console.log(`Emitiendo room_created a ${socket.id} con token ${roomId}`); // ← agregá esto
+
         broadcastRoomUpdate();
-        socket.emit('room_created', { roomId });
+        socket.emit('room_created', { roomId, creatorToken: roomId });
     });
 
     // ✅ start_race ADENTRO del bloque connection

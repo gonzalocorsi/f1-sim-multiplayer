@@ -61,9 +61,8 @@ if (createForm) {
     });
 }
 
-// ── 3. RESPUESTA DEL SERVIDOR AL CREADOR ──────────────────────────────────
-socket.on('room_created', ({ roomId }: { roomId: string }) => {
-    // El creador va directo al joystick
+socket.on('room_created', ({ roomId, creatorToken }: { roomId: string; creatorToken: string }) => {
+    sessionStorage.setItem(`creator_${roomId}`, creatorToken);
     window.location.href = `/mando.html?room=${roomId}`;
 });
 
