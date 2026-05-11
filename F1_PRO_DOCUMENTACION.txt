@@ -1,0 +1,281 @@
+F1 PRO MULTIPLAYER — DOCUMENTACIÓN DEL PROYECTO
+================================================
+
+DESCRIPCIÓN GENERAL
+-------------------
+Simulador de carreras multijugador en tiempo real.
+Los jugadores usan sus celulares como mandos (giroscopio),
+y una pantalla grande actúa como visualizador de la carrera.
+
+TECNOLOGÍAS UTILIZADAS
+-----------------------
+- Node.js + TypeScript     → Servidor
+- Express                  → Servidor HTTP / archivos estáticos
+- Socket.io                → Comunicación en tiempo real
+- Matter.js                → Motor de física 2D
+- HTML5 Canvas             → Renderizado visual (tv.html)
+- localStorage             → Guardar rol del usuario en el navegador
+
+
+ESTRUCTURA DE CARPETAS
+-----------------------
+/
+├── src/                        → Código TypeScript del servidor
+│   ├── server.ts               → Punto de entrada. Servidor principal
+│   ├── PhysicsEngine.ts        → Motor de física y loops del juego
+│   ├── Car.ts                  → Clase de cada auto (física + vueltas)
+│   ├── types.ts                → Interfaces TypeScript compartidas
+│   ├── LobbyServer.ts          → ⚠️ NO SE USA (archivo zombie)
+│   └── LobbyManager.ts         → ⚠️ NO SE USA (archivo zombie)
+│
+├── public/                     → Archivos servidos al navegador
+│   ├── index.html              → Lobby principal (lista de salas)
+│   ├── setup-race.html         → Formulario para crear una sala
+│   ├── mando.html              → Joystick del celular
+│   ├── tv.html                 → Visualizador de la carrera
+│   └── js/
+│       ├── lobby-client.js     → Lógica del lobby (roles, salas)
+│       └── setup-race.js       → Lógica del formulario de creación
+│
+├── dist/                       → TypeScript compilado (generado, no editar)
+│
+├── tsconfig.json               → Config TypeScript para el servidor
+├── tsconfig.client.json        → Config TypeScript para el navegador
+└── package.json                → Dependencias y scripts del proyecto
+
+
+ARCHIVOS — DETALLE
+-------------------
+
+[ src/server.ts ]
+  Rol         : Punto de entrada del servidor
+  Arranca     : Express + Socket.io + PhysicsEngine
+  Sirve       : /public (HTML/CSS/JS) y /dist (JS compilado)
+  Mantiene    : Array rooms[] con las salas activas
+  Eventos Socket.io que escucha:
+    - connection      → manda la lista de salas al nuevo cliente
+    - get_initial_rooms → reenvía la lista de salas
+    - join_session    → agrega el auto al motor de física
+                        marca la sala como hadPlayers=true
+    - drive           → pasa los inputs al PhysicsEngine
+    - create_room     → crea una sala nueva, avisa a todos,
+                        redirige al creador
+    - disconnect      → elimina el auto, limpia salas vacías
+  Eventos Socket.io que emite:
+    - update_rooms    → lista actualizada de salas (a todos)
+    - room_created    → confirmación al creador con el roomId
+
+[ src/PhysicsEngine.ts ]
+  Rol         : Motor central del juego
+  Construye   : Mundo físico (paredes, pasto, barrera de neumáticos)
+  Mantiene    : Map players con todos los autos activos
+  Loop rápido (60fps):
+    - Actualiza Matter.js
+    - Llama car.update() en cada auto
+    - Emite state_update a las TVs de cada sala
+  Loop lento (cada 150ms):
+    - Detecta si cada auto está en el pasto
+    - Llama car.checkLap()
+    - Emite telemetría privada a cada mando
+    - Emite haptic_feedback 'grass' si corresponde
+  Detecta colisiones:
+    - Si un auto choca contra pared o neumático →
+      emite haptic_feedback 'collision' al mando
+  Métodos públicos:
+    - addCar(socketId, roomId)    → crea auto en posición de grilla
+    - removeCar(socketId)         → elimina auto del mundo
+    - handleInput(socketId, data) → actualiza inputs del auto
+    - getPlayerCount(roomId)      → cuenta autos de una sala
+
+[ src/Car.ts ]
+  Rol         : Representa un auto individual
+  Estado      : isGas, isTurbo, isReverse, turnValue,
+                tireHealth (0-1), energy (0-1),
+                laps, passedHalf, isOnGrass
+  update()    : Se llama 60fps. Calcula:
+    - Grip según superficie (asfalto 0.98 / pasto 0.15)
+    - Corrección de velocidad lateral (anti-derrape)
+    - Límite de velocidad máxima
+    - Fuerza de aceleración (normal o turbo)
+    - Fuerza de reversa
+    - Giro según velocidad actual
+    - Desgaste de gomas (más rápido en pasto)
+    - Consumo y recarga de energía ERS
+  checkLap()  : Detecta paso por checkpoint (arriba)
+                y línea de meta (abajo). Cuenta vuelta
+                solo si pasó por el checkpoint primero.
+
+[ src/types.ts ]
+  Rol         : Define las estructuras de datos compartidas
+  Interfaces  :
+    - PlayerInput  → { turn, gas, turbo, reverse }
+    - PlayerState  → { id, x, y, angle, color, laps,
+                       isTurbo, isOnGrass, speed }
+    - Room         → { id, name, port?, playerCount,
+                       maxPlayers, mapName, status,
+                       hadPlayers? }
+    - RedirectData → (no se usa actualmente)
+
+[ public/index.html + public/js/lobby-client.js ]
+  Rol         : Lobby principal. Primera pantalla del juego
+  Al cargar   : Muestra modal para elegir rol si no hay uno guardado
+  Rol guardado: localStorage → clave 'f1pro_role'
+                valores posibles: 'mando' | 'tv'
+  Muestra     : Lista de salas activas con estado (EN BOXES / EN CARRERA)
+  Al entrar   : Lee rol de localStorage → redirige a mando.html o tv.html
+  Botón crear : Solo visible si rol = 'mando' → lleva a setup-race.html
+
+[ public/setup-race.html + public/js/setup-race.js ]
+  Rol         : Formulario para crear una nueva sala
+  Campos      : Nombre del GP, Circuito (select), Vueltas (número)
+  Al enviar   : socket.emit('create_room', { name, mapName, laps })
+  Al recibir
+  room_created: Redirige a /mando.html?room=ID
+
+[ public/mando.html ]
+  Rol         : Joystick del celular
+  Al cargar   : Lee roomId de la URL (?room=ID)
+  Al tocar    : Pide permisos de giroscopio (iOS)
+                socket.emit('join_session', { roomId, type: 'mando' })
+  Zonas táctiles:
+    - GAS (50%)     → mantener tocado para acelerar
+    - REVERSE (25%) → deslizar izquierda para reversa
+    - TURBO (25%)   → mantener tocado para turbo/DRS
+  Giroscopio  : Inclinar el teléfono = girar el auto
+                Normalizado entre -1 y 1. Dead zone < 0.1
+                Corregido para iOS (eje invertido)
+  Emite       : socket.emit('drive', { turn, gas, turbo, reverse })
+                Limitado a 30 veces por segundo (cada 33ms)
+  Recibe      : 'telemetry'       → actualiza barras de gomas/ERS y velocidad
+                'haptic_feedback' → vibra el celular (choque o pasto)
+
+[ public/tv.html ]
+  Rol         : Pantalla de espectador / visualizador
+  Al cargar   : Lee roomId de la URL (?room=ID)
+                socket.emit('join_session', { roomId, type: 'tv' })
+  Recibe      : 'state_update' → posición de todos los autos
+  Dibuja (Canvas, 60fps):
+    - Pasto con rayas (fondo)
+    - Pista oval con kerbstones rojo/blanco
+    - Interior verde
+    - Línea de meta (tablero ajedrez)
+    - Checkpoint (cono naranja)
+    - Marcas de grilla de salida
+    - Barrera de neumáticos
+    - Autos con detalle (chasis, alerones, cockpit, halo)
+    - Efecto turbo (glow cyan + llama)
+    - Partículas de tierra/pasto al salir de pista
+    - Leaderboard en tiempo real (esquina superior izquierda)
+
+
+FLUJO COMPLETO DE UNA SESIÓN
+------------------------------
+
+1. ELEGIR ROL
+   Usuario abre index.html
+   └─ Si no tiene rol guardado → aparece modal
+      └─ Elige Mando o TV → se guarda en localStorage
+
+2. CREAR SALA (solo Mando)
+   Usuario toca "Crear Nueva Carrera"
+   └─ Va a setup-race.html
+      └─ Completa nombre, circuito y vueltas
+         └─ socket.emit('create_room', datos)
+            └─ Servidor crea sala → rooms.push(newRoom)
+               └─ socket.emit('room_created', { roomId })
+                  └─ Cliente redirige a /mando.html?room=ID
+
+3. UNIRSE A UNA SALA EXISTENTE
+   Usuario ve sala en index.html
+   └─ Toca la card
+      └─ lobby-client.js lee rol de localStorage
+         └─ Redirige a /mando.html?room=ID  (si es mando)
+                     o /tv.html?room=ID     (si es tv)
+
+4. DENTRO DE LA CARRERA (mando)
+   mando.html carga → usuario toca "TOCÁ PARA CONECTAR"
+   └─ socket.emit('join_session', { roomId, type: 'mando' })
+      └─ Servidor llama physics.addCar(socketId, roomId)
+         └─ Auto aparece en la grilla de salida
+            └─ Loop 60fps: mando emite 'drive' con inputs
+               └─ Servidor pasa inputs a Car.update()
+                  └─ PhysicsEngine emite 'state_update' a TVs
+                  └─ PhysicsEngine emite 'telemetry' al mando
+
+5. DENTRO DE LA CARRERA (tv)
+   tv.html carga → socket.emit('join_session', { roomId, type: 'tv' })
+   └─ Servidor une al socket a la sala (sin crear auto)
+      └─ Recibe 'state_update' cada 16ms
+         └─ Dibuja el estado completo en canvas
+
+6. DESCONEXIÓN
+   Usuario cierra o sale
+   └─ socket.on('disconnect')
+      └─ physics.removeCar(socketId)
+         └─ rooms filtra salas vacías (excepto 'gp-argentina')
+            └─ broadcastRoomUpdate() → todos ven la lista actualizada
+
+
+SISTEMA DE SALAS
+-----------------
+- Las salas viven en el array rooms[] en memoria del servidor
+- Se reinician si el servidor se reinicia (no hay base de datos)
+- Sala fija: 'gp-argentina' → nunca se borra
+- Salas creadas por usuarios → se borran cuando quedan vacías
+  (solo si ya tuvieron al menos un jugador → hadPlayers=true)
+- Estados posibles:
+    waiting     → sala abierta, esperando jugadores
+    racing      → hay al menos un auto dentro
+    coming_soon → sala deshabilitada (no se usa actualmente)
+    finished    → (definido en types.ts, no implementado aún)
+
+
+EVENTOS SOCKET.IO — RESUMEN
+-----------------------------
+Cliente → Servidor:
+  join_session      { roomId, type }            → entrar a una sala
+  drive             { turn, gas, turbo, reverse } → inputs del mando
+  create_room       { name, mapName, laps }     → crear sala nueva
+  get_initial_rooms (sin datos)                 → pedir lista de salas
+
+Servidor → Cliente (todos):
+  update_rooms      [ ...rooms ]                → lista de salas actualizada
+
+Servidor → Cliente (sala específica):
+  state_update      { players, tireBarrier }    → estado del juego
+
+Servidor → Cliente (privado, solo al mando):
+  telemetry         { tireHealth, energy, speed, isOnGrass }
+  haptic_feedback   'grass' | 'collision'
+  room_created      { roomId }
+
+
+SCRIPTS DISPONIBLES
+--------------------
+npm run dev          → Arranca server.ts con recarga automática (desarrollo)
+npm run build        → Compila servidor + cliente a /dist
+npm run build:server → Solo compila el servidor (tsconfig.json)
+npm run build:client → Solo compila el cliente (tsconfig.client.json)
+npm start            → Arranca el servidor compilado (producción / Render)
+
+
+DEPLOY EN RENDER
+-----------------
+- Build command : npm run build
+- Start command : npm start
+- Un solo proceso, un solo puerto (process.env.PORT)
+- El servidor sirve todos los archivos estáticos
+- No requiere LobbyServer.ts ni procesos adicionales
+
+
+DEUDA TÉCNICA / MEJORAS PENDIENTES
+------------------------------------
+- Borrar LobbyServer.ts y LobbyManager.ts (no se usan)
+- Borrar src/setup-race.ts (reemplazado por public/js/setup-race.js)
+- Las salas no persisten si el servidor se reinicia (sin base de datos)
+- No hay sistema de inicio de carrera controlado (cuenta regresiva)
+- El leaderboard en tv.html ordena solo por vueltas completadas
+- La sala 'gp-argentina' es fija pero no tiene circuito diferente
+  al de las salas creadas (todos usan la misma pista)
+- El campo 'finished' en Room.status no está implementado
+- No hay límite de vueltas que termine la carrera automáticamente

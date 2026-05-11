@@ -1,43 +1,49 @@
 import Matter from 'matter-js';
 import { Server } from 'socket.io';
 import { Car } from './Car.js';
-import { PlayerInput } from './types.js';
+import { PlayerInput, Room } from './types.js';
 
 export class PhysicsEngine {
     private engine: Matter.Engine;
     private io: Server;
-    private players: Map<string, Car> = new Map();
+    private players: Map<string, { car: Car, roomId: string }> = new Map();
     private trackWalls: Matter.Body[];
     private tireBarrier: Matter.Body[] = [];
+    private lockedRooms: Set<string> = new Set();
+    private onRaceFinished: (roomId: string, winnerId: string) => void;
+    private getRooms: () => Room[];
 
-    // --- CONFIGURACIÓN DEL CIRCUITO ---
     private readonly GRID_START_X = 740;
     private readonly GRID_START_Y = 610;
     private readonly OFFSET_X = -100;
     private readonly OFFSET_Y = 80;
 
-    constructor(io: Server) {
+    constructor(
+        io: Server,
+        onRaceFinished: (roomId: string, winnerId: string) => void,
+        getRooms: () => Room[]
+    ) {
         this.io = io;
+        this.onRaceFinished = onRaceFinished;
+        this.getRooms = getRooms;
+
         this.engine = Matter.Engine.create({ gravity: { x: 0, y: 0 } });
 
         const { Bodies, Composite, Events } = Matter;
-        
-        // 1. Paredes del circuito
+
         this.trackWalls = [
             Bodies.rectangle(800, 0, 1600, 40, { isStatic: true, label: 'wall' }),
             Bodies.rectangle(800, 900, 1600, 40, { isStatic: true, label: 'wall' }),
             Bodies.rectangle(0, 450, 40, 900, { isStatic: true, label: 'wall' }),
             Bodies.rectangle(1600, 450, 40, 900, { isStatic: true, label: 'wall' }),
-            // El sensor del centro (pasto)
-            Bodies.rectangle(800, 450, 850, 250, { 
-                isStatic: true, 
-                isSensor: true, 
-                chamfer: { radius: 50 }, 
-                label: 'grass_center' 
+            Bodies.rectangle(800, 450, 850, 250, {
+                isStatic: true,
+                isSensor: true,
+                chamfer: { radius: 50 },
+                label: 'grass_center'
             })
         ];
 
-        // 2. Barrera de neumáticos
         const barrierY = 450;
         const tireRadius = 18;
         for (let x = 650; x <= 950; x += tireRadius * 2) {
@@ -49,21 +55,17 @@ export class PhysicsEngine {
 
         Composite.add(this.engine.world, [...this.trackWalls, ...this.tireBarrier]);
 
-        // 3. Sistema de detección de colisiones para Feedback Háptico
         Events.on(this.engine, 'collisionStart', (event) => {
             event.pairs.forEach((pair) => {
                 const bodyA = pair.bodyA;
                 const bodyB = pair.bodyB;
-
-                // Identificamos si uno de los cuerpos es un auto
                 const carBody = bodyA.label === 'car' ? bodyA : (bodyB.label === 'car' ? bodyB : null);
                 const otherBody = carBody === bodyA ? bodyB : bodyA;
 
-                // Si chocó contra una pared o neumático (no pasto)
                 if (carBody && otherBody.label !== 'grass_center') {
-                    const car = Array.from(this.players.values()).find(c => c.body === carBody);
-                    if (car) {
-                        this.io.to(car.id).emit('haptic_feedback', 'collision');
+                    const entry = Array.from(this.players.values()).find(e => e.car.body === carBody);
+                    if (entry) {
+                        this.io.to(entry.car.id).emit('haptic_feedback', 'collision');
                     }
                 }
             });
@@ -71,6 +73,11 @@ export class PhysicsEngine {
 
         this.startHighFrequencyLoop();
         this.startLowFrequencyLoop();
+    }
+
+    public setRoomLocked(roomId: string, locked: boolean) {
+        if (locked) this.lockedRooms.add(roomId);
+        else this.lockedRooms.delete(roomId);
     }
 
     public addCar(socketId: string, roomId: string) {
@@ -83,76 +90,87 @@ export class PhysicsEngine {
         const posX = this.GRID_START_X + (row * this.OFFSET_X);
         const posY = this.GRID_START_Y + (col * this.OFFSET_Y);
 
-        const newCar = new Car(
+        const car = new Car(
             socketId,
-            '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+            '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'),
             posX,
             posY
         );
-        
-        // Etiqueta para el motor de colisiones
-        newCar.body.label = 'car';
-        (newCar as any).roomId = roomId; 
 
-        this.players.set(socketId, newCar);
-        Matter.Composite.add(this.engine.world, newCar.body);
+        car.body.label = 'car';
+        this.players.set(socketId, { car, roomId });
+        Matter.Composite.add(this.engine.world, car.body);
     }
 
     public removeCar(socketId: string) {
-        const car = this.players.get(socketId);
-        if (car) {
-            Matter.Composite.remove(this.engine.world, car.body);
+        const entry = this.players.get(socketId);
+        if (entry) {
+            Matter.Composite.remove(this.engine.world, entry.car.body);
             this.players.delete(socketId);
         }
     }
 
     public handleInput(socketId: string, data: PlayerInput) {
-        const car = this.players.get(socketId);
-        if (car) {
-            car.isGas = data.gas;
-            car.turnValue = data.turn || 0;
-            car.isTurbo = data.turbo || false;
-            car.isReverse = data.reverse || false;
-        }
+        const entry = this.players.get(socketId);
+        if (!entry) return;
+        if (this.lockedRooms.has(entry.roomId)) return;
+
+        const { car } = entry;
+        car.isGas = data.gas;
+        car.turnValue = data.turn || 0;
+        car.isTurbo = data.turbo || false;
+        car.isReverse = data.reverse || false;
     }
 
     public getPlayerCount(roomId: string): number {
-        return Array.from(this.players.values()).filter(car => (car as any).roomId === roomId).length;
+        return Array.from(this.players.values()).filter(e => e.roomId === roomId).length;
     }
+	public getLeaderboard(roomId: string): { id: string; color: string; laps: number }[] {
+    return Array.from(this.players.values())
+        .filter(e => e.roomId === roomId)
+        .map(e => ({
+            id: e.car.id,
+            color: (e.car as any).color,
+            laps: e.car.laps
+        }))
+        .sort((a, b) => b.laps - a.laps);
+}
 
     private startHighFrequencyLoop() {
         setInterval(() => {
             Matter.Engine.update(this.engine, 1000 / 60);
 
-            const playerList = Array.from(this.players.values());
-            playerList.forEach(car => car.update());
+            const entries = Array.from(this.players.values());
+            entries.forEach(({ car }) => car.update());
 
-            const rooms = new Set(playerList.map(c => (c as any).roomId));
-            
-            rooms.forEach(roomId => {
-                const roomPlayers = playerList.filter(c => (c as any).roomId === roomId);
-                this.io.to(roomId as string).emit('state_update', {
+            const roomIds = new Set(entries.map(e => e.roomId));
+            roomIds.forEach(roomId => {
+                const roomPlayers = entries.filter(e => e.roomId === roomId);
+                this.io.to(roomId).emit('state_update', {
                     tireBarrier: this.tireBarrier.map(t => ({ x: t.position.x, y: t.position.y })),
-                    players: roomPlayers.map(car => this.formatCarData(car))
+                    players: roomPlayers.map(({ car }) => this.formatCarData(car))
                 });
             });
         }, 1000 / 60);
     }
 
     private startLowFrequencyLoop() {
+        const finishedRooms = new Set<string>();
+
         setInterval(() => {
-            this.players.forEach(car => {
+            const rooms = this.getRooms();
+
+            this.players.forEach((entry, socketId) => {
+                const { car, roomId } = entry;
                 const px = car.body.position.x;
                 const py = car.body.position.y;
 
-                // Lógica de detección de pasto
                 const onOuterGrass = px < 225 || px > 1375 || py < 175 || py > 725;
                 const collision = Matter.Query.collides(car.body, [this.trackWalls[4]]);
-                
+
                 car.isOnGrass = collision.length > 0 || onOuterGrass;
                 car.checkLap();
 
-                // 1. Enviar telemetría al mando
                 this.io.to(car.id).emit('telemetry', {
                     tireHealth: Math.floor(car.tireHealth * 100),
                     energy: Math.floor(car.energy * 100),
@@ -160,12 +178,22 @@ export class PhysicsEngine {
                     isOnGrass: car.isOnGrass
                 });
 
-                // 2. Feedback de vibración por pasto
                 if (car.isOnGrass && car.body.speed > 2) {
                     this.io.to(car.id).emit('haptic_feedback', 'grass');
                 }
+
+                // Verificar fin de carrera
+                const room = rooms.find(r => r.id === roomId);
+                if (
+                    room?.laps &&
+                    car.laps >= room.laps &&
+                    !finishedRooms.has(roomId)
+                ) {
+                    finishedRooms.add(roomId);
+                    this.onRaceFinished(roomId, socketId);
+                }
             });
-        }, 150); 
+        }, 150);
     }
 
     private formatCarData(car: Car) {
@@ -176,7 +204,7 @@ export class PhysicsEngine {
             angle: car.body.angle,
             color: (car as any).color,
             isTurbo: car.isTurbo,
-            laps: (car as any).laps,
+            laps: car.laps,
             isOnGrass: car.isOnGrass,
             speed: car.body.speed
         };

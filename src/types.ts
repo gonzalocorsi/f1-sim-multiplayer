@@ -26,6 +26,8 @@ export interface Room {
     mapName: string;
     status: 'waiting' | 'racing' | 'finished'| 'coming_soon';
 	hadPlayers?: boolean; 
+	creatorId?: string;    // socketId del que creó la sala
+	laps?: number;         // vueltas configuradas al crear
 }
 
 export interface RedirectData {

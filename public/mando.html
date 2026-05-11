@@ -96,7 +96,7 @@
     <div id="start-screen">
         <div id="start-btn">TOCÁ PARA CONECTAR</div>
     </div>
-
+<button id="btn-start" style="display:none">INICIAR CARRERA</button>
     <div id="gamepad">
         <!-- GAS (50%) -->
         <div id="gas-zone">
@@ -120,45 +120,90 @@
    <script>
 const socket = io();
 
-// 1. CONFIGURACIÓN DE SALA Y ESTADO
+// 1. SALA Y ESTADO
 const urlParams = new URLSearchParams(window.location.search);
-let roomId = urlParams.get('room'); 
-
-if (!roomId) {
-    roomId = window.location.search.substring(1) || 'gp-argentina';
-}
-
+let roomId = urlParams.get('room') || window.location.search.substring(1) || 'gp-argentina';
 console.log("Conectando a la sala:", roomId);
 
-const startScreen = document.getElementById('start-screen');
-const startBtn = document.getElementById('start-btn');
-const gamepad = document.getElementById('gamepad');
-const gasZone = document.getElementById('gas-zone');
-const reverseZone = document.getElementById('reverse-zone');
-const turboZone = document.getElementById('turbo-zone');
-const debug = document.getElementById('debug');
-
+let isCreator = false;
 let isGas = false, isTurbo = false, isReverse = false;
-let lastEmitTime = 0; 
+let lastEmitTime = 0;
 
-// 2. CONEXIÓN Y PERMISOS (CORREGIDO)
+// Referencias al DOM
+const startScreen = document.getElementById('start-screen');
+const startBtn    = document.getElementById('start-btn');
+const gamepad     = document.getElementById('gamepad');
+const gasZone     = document.getElementById('gas-zone');
+const reverseZone = document.getElementById('reverse-zone');
+const turboZone   = document.getElementById('turbo-zone');
+const debug       = document.getElementById('debug');
+const btnIniciar  = document.getElementById('btn-start');
+
+// 2. BOTÓN INICIAR CARRERA (solo para el creador)
+btnIniciar.addEventListener('click', () => {
+    socket.emit('start_race', roomId);
+    btnIniciar.style.display = 'none';
+});
+
+// El servidor confirma que esta sesión creó la sala
+socket.on('you_are_creator', () => {
+    isCreator = true;
+    btnIniciar.style.display = 'block';
+});
+
+// 3. CUENTA REGRESIVA
+const countdownOverlay = document.createElement('div');
+countdownOverlay.style.cssText = `
+    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.75); z-index:500;
+    align-items:center; justify-content:center;
+    font-size:120px; font-weight:900; color:#fff;
+`;
+document.body.appendChild(countdownOverlay);
+
+socket.on('countdown', (n) => {
+    countdownOverlay.style.display = 'flex';
+    countdownOverlay.innerText = n === 0 ? '¡GO!' : n;
+    if (n === 0) setTimeout(() => { countdownOverlay.style.display = 'none'; }, 700);
+});
+
+// 4. FIN DE CARRERA
+const finishedOverlay = document.createElement('div');
+finishedOverlay.style.cssText = `
+    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.85); z-index:600;
+    flex-direction:column; align-items:center; justify-content:center;
+    font-size:36px; font-weight:900; color:#fff; text-align:center;
+`;
+finishedOverlay.innerHTML = `
+    <div id="finished-msg"></div>
+    <button onclick="window.location.href='/'" style="
+        margin-top:30px; padding:12px 30px; font-size:18px;
+        background:#e10600; color:#fff; border:none; border-radius:10px; font-weight:bold;
+    ">VOLVER AL LOBBY</button>
+`;
+document.body.appendChild(finishedOverlay);
+
+socket.on('race_finished', ({ winnerId }) => {
+    finishedOverlay.style.display = 'flex';
+    document.getElementById('finished-msg').innerText =
+        winnerId === socket.id ? '🏆 ¡GANASTE!' : '🏁 CARRERA TERMINADA';
+});
+
+// 5. CONEXIÓN AL TOCAR EL BOTÓN
 startBtn.onclick = function() {
-    // Unirse a la sala
     socket.emit('join_session', { roomId, type: 'mando' });
 
-    // Permisos de sensores
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
-            .then(state => { 
-                if(state === 'granted') ready(); 
+            .then(state => {
+                if (state === 'granted') ready();
                 else alert("Se requieren permisos de movimiento para manejar.");
             })
-            .catch(err => {
-                console.error("Error en sensores:", err);
-                ready(); // Intentar arrancar igual
-            });
-    } else { 
-        ready(); 
+            .catch(() => ready());
+    } else {
+        ready();
     }
 };
 
@@ -168,89 +213,63 @@ function ready() {
     activarSensores();
 }
 
-// 3. SENSORES
+// 6. SENSORES
 function activarSensores() {
     window.addEventListener('devicemotion', (event) => {
         const now = Date.now();
-        if (now - lastEmitTime < 33) return; 
+        if (now - lastEmitTime < 33) return;
         lastEmitTime = now;
 
         let tilt = event.accelerationIncludingGravity.y || 0;
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        
         let turnValue = (isIOS ? -tilt : tilt) / 6;
         turnValue = Math.max(-1, Math.min(1, turnValue));
-        
         if (Math.abs(turnValue) < 0.1) turnValue = 0;
 
-        socket.emit('drive', { 
-            turn: turnValue, 
-            gas: isGas, 
-            turbo: isTurbo, 
-            reverse: isReverse 
-        });
-        
+        socket.emit('drive', { turn: turnValue, gas: isGas, turbo: isTurbo, reverse: isReverse });
         debug.innerText = `GIRO: ${Math.round(turnValue * 100)}%`;
     }, true);
 }
 
-// 4. EVENTOS DE TOUCH (GAS, TURBO, REVERSA)
-gasZone.addEventListener('touchstart', (e) => { e.preventDefault(); isGas = true; gasZone.classList.add('active'); });
-gasZone.addEventListener('touchend', () => { isGas = false; gasZone.classList.remove('active'); });
-
-turboZone.addEventListener('touchstart', (e) => { e.preventDefault(); isTurbo = true; turboZone.classList.add('active'); });
-turboZone.addEventListener('touchend', () => { isTurbo = false; turboZone.classList.remove('active'); });
+// 7. TOUCH
+gasZone.addEventListener('touchstart',  (e) => { e.preventDefault(); isGas = true;  gasZone.classList.add('active'); });
+gasZone.addEventListener('touchend',    ()  => { isGas = false;  gasZone.classList.remove('active'); });
+turboZone.addEventListener('touchstart',(e) => { e.preventDefault(); isTurbo = true; turboZone.classList.add('active'); });
+turboZone.addEventListener('touchend',  ()  => { isTurbo = false; turboZone.classList.remove('active'); });
 
 let startX = 0;
-reverseZone.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, {passive: true});
-reverseZone.addEventListener('touchmove', (e) => {
+reverseZone.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, { passive: true });
+reverseZone.addEventListener('touchmove',  (e) => {
     let delta = startX - e.touches[0].clientX;
     if (delta > 0) {
         let pull = Math.min(delta / 80, 1);
         document.getElementById('reverse-fill').style.width = (pull * 100) + '%';
         if (pull >= 0.9) isReverse = true;
     }
-}, {passive: true});
-
+}, { passive: true });
 document.addEventListener('touchend', () => {
     isReverse = false;
     document.getElementById('reverse-fill').style.width = '0%';
 });
 
-// 5. TELEMETRÍA Y SALIDA
+// 8. TELEMETRÍA Y HÁPTICOS
 socket.on('telemetry', (data) => {
     document.getElementById('tire-bar').style.width = data.tireHealth + '%';
-    document.getElementById('ers-bar').style.width = data.energy + '%';
-    document.getElementById('speedometer').innerText = data.speed + " KM/H";
-    
-    if(data.tireHealth < 20) document.getElementById('tire-bar').style.background = '#ff0000';
-    else document.getElementById('tire-bar').style.background = '#ffffff';
+    document.getElementById('ers-bar').style.width  = data.energy + '%';
+    document.getElementById('speedometer').innerText = data.speed + ' KM/H';
+    document.getElementById('tire-bar').style.background = data.tireHealth < 20 ? '#ff0000' : '#ffffff';
 });
-const Haptics = {
-    // Vibración corta y suave para el pasto
-    grass: () => {
-        if ("vibrate" in navigator) {
-            navigator.vibrate(40); 
-        }
-    },
-    // Vibración fuerte y seca para choques
-    collision: () => {
-        if ("vibrate" in navigator) {
-            navigator.vibrate([150, 50, 100]); // Golpe fuerte, pausa corta, golpe medio
-        }
-    }
-};
 
 socket.on('haptic_feedback', (type) => {
-    if (type === 'grass') Haptics.grass();
-    if (type === 'collision') Haptics.collision();
+    if (!('vibrate' in navigator)) return;
+    if (type === 'grass')     navigator.vibrate(40);
+    if (type === 'collision') navigator.vibrate([150, 50, 100]);
 });
 
 function quitGame() {
     socket.disconnect();
-    window.location.href = "/"; // Volver al lobby
+    window.location.href = '/';
 }
-
 </script>
 </body>
 </html>
