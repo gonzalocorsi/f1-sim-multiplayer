@@ -279,3 +279,5 @@ DEUDA TÉCNICA / MEJORAS PENDIENTES
   al de las salas creadas (todos usan la misma pista)
 - El campo 'finished' en Room.status no está implementado
 - No hay límite de vueltas que termine la carrera automáticamente
+
+

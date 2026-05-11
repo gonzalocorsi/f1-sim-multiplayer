@@ -2,11 +2,17 @@ import Matter from 'matter-js';
 const { Body, Bodies } = Matter;
 
 export class Car {
+	// Agregar estas propiedades a la clase:
+public prevX: number = 0;
+public prevY: number = 0;
+public lastLapTime: number = 0;
+private readonly LAP_COOLDOWN = 1000; // ms
     public body: Matter.Body;
     public isGas: boolean = false;
     public isTurbo: boolean = false;
     public turnValue: number = 0;
     public laps: number = 0;
+	
     public passedHalf: boolean = false;
     public tireHealth: number = 1.0; 
     public energy: number = 1.0; // Añadido para el ERS
@@ -17,17 +23,22 @@ export class Car {
 
     constructor(public id: string, public color: string, x: number, y: number) {
         this.body = Bodies.rectangle(x, y, 50, 25, {
+			 // ← agregar
             density: 0.1,
             frictionAir: 0.016,
             restitution: 0.3,
             label: 'car'
         });
+		this.prevX = x;
+			this.prevY = y; 
     }
 
     update() {
 		const velocity = this.body.velocity; // <--- AGREGÁ ESTA LÍNEA
         const angle = this.body.angle;
         const speed = this.body.speed; // Usamos la variable local
+		const x = this.body.position.x;  // ← agregar
+		const y = this.body.position.y;
         const forward = { x: Math.cos(angle), y: Math.sin(angle) };
         const right = { x: Math.cos(angle + Math.PI / 2), y: Math.sin(angle + Math.PI / 2) };
 
@@ -107,19 +118,40 @@ if (this.isReverse) {
             const turnMultiplier = this.isOnGrass ? 1.5 : 1.0; 
             const turnAbility = Math.min(speed / 8, 1.2);
             Body.setAngularVelocity(this.body, this.turnValue * 0.08 * turnAbility * turnMultiplier);}
+			
+			
+			    
     }
+
+
+// Utilidad: intersección de segmentos
+private segmentsIntersect(
+    p1x: number, p1y: number, p2x: number, p2y: number,
+    p3x: number, p3y: number, p4x: number, p4y: number
+): boolean {
+    const d1x = p2x - p1x, d1y = p2y - p1y;
+    const d2x = p4x - p3x, d2y = p4y - p3y;
+    const cross = d1x * d2y - d1y * d2x;
+    if (Math.abs(cross) < 1e-10) return false; // paralelos
+
+    const dx = p3x - p1x, dy = p3y - p1y;
+    const t = (dx * d2y - dy * d2x) / cross;
+    const u = (dx * d1y - dy * d1x) / cross;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+}
+
 checkLap() {
-	
-	
     const x = this.body.position.x;
     const y = this.body.position.y;
-    const speed = this.body.speed;
+    const now = Date.now();
 
-    // CHECKPOINT — recta de ARRIBA, centro en y=250, asfalto entre y=250 y y=325
-    const atCheckpoint = y > 245 && y < 340 && x > 770 && x < 840 && speed > 1;
+    if (now - this.lastLapTime < this.LAP_COOLDOWN) return;
 
-    // META — recta de ABAJO, centro en y=650, asfalto entre y=575 y y=650
-    const atFinish = y > 560 && y < 660 && x > 770 && x < 840 && speed > 1;
+    // CHECKPOINT: franja horizontal donde pasa el auto en la recta de arriba
+    const atCheckpoint = y > 160 && y < 340 && x > 760 && x < 850;
+
+    // META: franja horizontal donde pasa el auto en la recta de abajo
+    const atFinish = y > 560 && y < 730 && x > 760 && x < 850;
 
     if (atCheckpoint && !this.inCheckpointZone) {
         this.passedHalf = true;
@@ -129,6 +161,8 @@ checkLap() {
     if (atFinish && !this.inFinishZone && this.passedHalf) {
         this.laps++;
         this.passedHalf = false;
+        this.lastLapTime = now;
+        console.log(`✅ Vuelta! Car ${this.id} | laps: ${this.laps}`);
     }
     this.inFinishZone = atFinish;
 }
