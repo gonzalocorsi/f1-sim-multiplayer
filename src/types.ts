@@ -24,7 +24,7 @@ export interface Room {
     playerCount: number;
     maxPlayers: number;
     mapName: string;
-    status: 'waiting' | 'racing' | 'finished'| 'coming_soon';
+    status: 'waiting' | 'racing' | 'finished'| 'coming_soon'| 'countdown';
 	hadPlayers?: boolean; 
 	creatorId?: string;    // socketId del que creó la sala
 	laps?: number;         // vueltas configuradas al crear
