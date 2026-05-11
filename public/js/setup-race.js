@@ -51,7 +51,9 @@ if (createForm) {
     });
 }
 
-// 3. RESPUESTA AL CREADOR
-socket.on('room_created', ({ roomId }) => {
+socket.on('room_created', ({ roomId, creatorToken }) => {
+    const key = `creator_${roomId}`;
+    sessionStorage.setItem(key, creatorToken);
+    console.log('key guardada:', key, '→ valor:', sessionStorage.getItem(key));
     window.location.href = `/mando.html?room=${roomId}`;
 });

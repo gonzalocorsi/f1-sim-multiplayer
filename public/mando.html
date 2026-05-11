@@ -96,7 +96,13 @@
     <div id="start-screen">
         <div id="start-btn">TOCÁ PARA CONECTAR</div>
     </div>
-<button id="btn-start" style="display:none">INICIAR CARRERA</button>
+<button id="btn-start" style="
+    display:none; position:fixed; bottom:40px; left:50%;
+    transform:translateX(-50%); z-index:900;
+    padding:16px 40px; font-size:20px; font-weight:900;
+    background:#e10600; color:white; border:none; border-radius:12px;
+    cursor:pointer; letter-spacing:2px;
+">🏁 INICIAR CARRERA</button>
     <div id="gamepad">
         <!-- GAS (50%) -->
         <div id="gas-zone">
@@ -189,10 +195,24 @@ socket.on('race_finished', ({ winnerId }) => {
     document.getElementById('finished-msg').innerText =
         winnerId === socket.id ? '🏆 ¡GANASTE!' : '🏁 CARRERA TERMINADA';
 });
-
+console.log('roomId detectado:', roomId);
+console.log('creatorToken en sessionStorage:', sessionStorage.getItem(`creator_${roomId}`));
+console.log('Todas las keys en sessionStorage:', Object.keys(sessionStorage));
+console.log('Buscando key:', `creator_${roomId}`);
 // 5. CONEXIÓN AL TOCAR EL BOTÓN
 startBtn.onclick = function() {
-    socket.emit('join_session', { roomId, type: 'mando' });
+    // Leer el creatorToken si somos el creador de esta sala
+const creatorToken = sessionStorage.getItem('creator_' + roomId) || undefined;
+
+	     console.log('TOKEN:', creatorToken);  // ¿null o el valor?
+
+    console.log('Emitiendo join_session con:', { roomId, type: 'mando', creatorToken }); // ← agregá esto
+        console.log('join_session emitido');
+
+	socket.emit('join_session', { roomId, type: 'mando', creatorToken });
+    
+    // Limpiar el token para que no persista en recargas
+    sessionStorage.removeItem(`creator_${roomId}`);
 
     if (typeof DeviceOrientationEvent !== 'undefined' &&
         typeof DeviceOrientationEvent.requestPermission === 'function') {
