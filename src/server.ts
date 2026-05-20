@@ -76,32 +76,34 @@ io.on('connection', (socket) => {
 
 socket.on('join_session', ({ roomId, type, creatorToken }) => {
     console.log(`join_session → type:${type} roomId:${roomId} token:${creatorToken}`);
-	    const room = rooms.find(r => r.id === roomId);
 
-    console.log(`room.creatorId: ${room?.creatorId}`);
-
-    socket.rooms.forEach(room => { if (room !== socket.id) socket.leave(room); });
+    socket.rooms.forEach(r => { if (r !== socket.id) socket.leave(r); });
     socket.join(roomId);
+
+    const room = rooms.find(r => r.id === roomId); // ← recién acá
+    console.log(`room.creatorId: ${room?.creatorId}`);
 
     if (type === 'mando' || type === 'solo' || type === 'tv') {
         if (type !== 'tv') physics.addCar(socket.id, roomId);
-        
-        const room = rooms.find(r => r.id === roomId);
+
         if (room) {
+			console.log('Token del mando:', creatorToken, 'Token real:', room.creatorId);
             room.hadPlayers = true;
-            // Lockear salas custom (las que tienen creatorId) hasta que el creador inicie
             if (room.creatorId && room.status === 'waiting') {
-                physics.setRoomLocked(roomId, true); // ← esto bloquea el input hasta start_race
+                physics.setRoomLocked(roomId, true);
             }
         }
- // ← Identificar creador por token en vez de socketId
+		
         if (type === 'mando' && creatorToken && room?.creatorId === creatorToken) {
-            room.creatorId = socket.id; // actualizar al socketId real
-            socket.emit('you_are_creator');
+            room.creatorSocketId = socket.id;
+            socket.emit('you_are_creator', { token: creatorToken });
         }
-        
+		} else {
+    console.log(`Alerta: No se encontró la sala con ID ${roomId}`);
+}
+
         broadcastRoomUpdate();
-    }
+    
 });
 
     socket.on('drive', (input) => {
@@ -131,7 +133,7 @@ socket.on('join_session', ({ roomId, type, creatorToken }) => {
     // ✅ start_race ADENTRO del bloque connection
     socket.on('start_race', (roomId: string) => {
         const room = rooms.find(r => r.id === roomId);
-        if (!room || room.creatorId !== socket.id) return;
+        if (!room || room.creatorSocketId !== socket.id) return;
         if (room.status !== 'waiting') return;
 
         room.status = 'countdown';
@@ -150,13 +152,39 @@ socket.on('join_session', ({ roomId, type, creatorToken }) => {
             }
         }, 1000);
     });
+	
+	
+
+		socket.on('request_restart', (roomId)=>{
+			console.log("Evento recibido para sala:", roomId);
+			const room = rooms.find(r => r.id === roomId);
+			if (!room || room.status !== 'finished') return;
+			physics.resetRace(roomId)
+			room.status = 'waiting';
+			room.creatorSocketId = socket.id;
+			broadcastRoomUpdate();
+			io.to(roomId).emit('force_reload');
+			console.log("=== DIAGNÓSTICO DE REINICIO ===");
+			console.log("1. Objeto sala completo en server.ts:", JSON.stringify(room));
+			console.log("2. Contador de jugadores activos en física:", physics.getPlayerCount(roomId));
+			
+			
+			
+			
+			
+			
+console.log("Estado actual de la sala encontrado:", room ? room.status : "No existe");
+console.log("Auditoría de reinicio - Vueltas de la sala:", room?.laps);
+				});
 
     socket.on('disconnect', () => {
         physics.removeCar(socket.id);
         console.log(`❌ Desconectado: ${socket.id}`);
         rooms = rooms.filter(r =>
             r.id === 'gp-argentina' ||
+			r.status === 'waiting' ||
             !r.hadPlayers ||
+			
             physics.getPlayerCount(r.id) > 0
         );
         broadcastRoomUpdate();

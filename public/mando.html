@@ -31,7 +31,7 @@
             background: #000; display: flex; align-items: center; justify-content: center; z-index: 1000;
         }
         #start-btn {
-            width: 70%; height: 60px; background: #fff; color: #000;
+            cursor: pointer; width: 70%; height: 60px; background: #fff; color: #000;
             font-weight: bold; border-radius: 15px; display: flex; align-items: center; justify-content: center;
         }
 
@@ -153,6 +153,7 @@ btnIniciar.addEventListener('click', () => {
 
 // El servidor confirma que esta sesión creó la sala
 socket.on('you_are_creator', () => {
+	localStorage.setItem('f1_creator_token', roomId);
     isCreator = true;
     btnIniciar.style.display = 'block';
 });
@@ -187,50 +188,67 @@ finishedOverlay.innerHTML = `
         margin-top:30px; padding:12px 30px; font-size:18px;
         background:#e10600; color:#fff; border:none; border-radius:10px; font-weight:bold;
     ">VOLVER AL LOBBY</button>
+	<button id="btn-reiniciar"  style="
+        margin-top:30px; padding:12px 30px; font-size:18px;
+        background:#e10600; color:#fff; border:none; border-radius:10px; font-weight:bold;
+    ">Reiniciar Carrera</button>
+	
 `;
 document.body.appendChild(finishedOverlay);
 
 socket.on('race_finished', ({ winnerId }) => {
+const btnReiniciar = document.getElementById('btn-reiniciar');
+if (winnerId===socket.id){
+btnReiniciar.style.display= 'block'}
+else{
+btnReiniciar.style.display='none'}
+btnReiniciar.onclick = () => {socket.emit('request_restart', roomId);
+    // Aquí adentro debés emitir el evento 'request_restart' llevando la variable roomId
+};
+
+	
     finishedOverlay.style.display = 'flex';
     document.getElementById('finished-msg').innerText =
         winnerId === socket.id ? '🏆 ¡GANASTE!' : '🏁 CARRERA TERMINADA';
 });
+
+socket.on('force_reload', () => {
+window.location.reload();
+});
+
 console.log('roomId detectado:', roomId);
 console.log('creatorToken en sessionStorage:', sessionStorage.getItem(`creator_${roomId}`));
 console.log('Todas las keys en sessionStorage:', Object.keys(sessionStorage));
 console.log('Buscando key:', `creator_${roomId}`);
+
 // 5. CONEXIÓN AL TOCAR EL BOTÓN
 startBtn.onclick = function() {
     // Leer el creatorToken si somos el creador de esta sala
-const creatorToken = sessionStorage.getItem('creator_' + roomId) || undefined;
-
-	     console.log('TOKEN:', creatorToken);  // ¿null o el valor?
-
-    console.log('Emitiendo join_session con:', { roomId, type: 'mando', creatorToken }); // ← agregá esto
-        console.log('join_session emitido');
-
-	socket.emit('join_session', { roomId, type: 'mando', creatorToken });
-    
+	let creatorToken =  sessionStorage.getItem(`creator_${roomId}`) || localStorage.getItem('f1_creator_token') || null;	
+	
     // Limpiar el token para que no persista en recargas
-    sessionStorage.removeItem(`creator_${roomId}`);
 
-    if (typeof DeviceOrientationEvent !== 'undefined' &&
-        typeof DeviceOrientationEvent.requestPermission === 'function') {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
-            .then(state => {
-                if (state === 'granted') ready();
-                else alert("Se requieren permisos de movimiento para manejar.");
+        .then(state => {
+            if (state === 'granted') ready(creatorToken);
+            else alert("Se requieren permisos de movimiento para manejar.");
             })
-            .catch(() => ready());
+            .catch(() => ready(creatorToken));
     } else {
-        ready();
+        ready(creatorToken);
     }
 };
 
-function ready() {
+function ready(token) {
     startScreen.style.display = 'none';
     gamepad.style.display = 'flex';
     activarSensores();
+	console.log('TOKEN:', token);  // ¿null o el valor?
+    console.log('Emitiendo join_session con:', { roomId, type: 'mando', token });
+    console.log('join_session emitido');
+	socket.emit('join_session', { roomId, type: 'mando', creatorToken: token });
+	sessionStorage.removeItem(`creator_${roomId}`);
 }
 
 // 6. SENSORES

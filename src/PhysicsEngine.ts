@@ -4,12 +4,14 @@ import { Car } from './Car.js';
 import { PlayerInput, Room } from './types.js';
 
 export class PhysicsEngine {
+	
     private engine: Matter.Engine;
     private io: Server;
     private players: Map<string, { car: Car, roomId: string }> = new Map();
     private trackWalls: Matter.Body[];
     private tireBarrier: Matter.Body[] = [];
     private lockedRooms: Set<string> = new Set();
+	private finishedRooms: Set<string> = new Set();
     private onRaceFinished: (roomId: string, winnerId: string) => void;
     private getRooms: () => Room[];
 
@@ -135,7 +137,14 @@ export class PhysicsEngine {
         }))
         .sort((a, b) => b.laps - a.laps);
 }
-
+	public resetRace(roomId: string){
+		this.finishedRooms.delete(roomId)
+		this.players.forEach((entry) =>{
+		if(roomId ===entry.roomId){
+			entry.car.laps=0;}
+		});
+	}
+	
     private startHighFrequencyLoop() {
         setInterval(() => {
             Matter.Engine.update(this.engine, 1000 / 60);
@@ -155,7 +164,7 @@ export class PhysicsEngine {
     }
 
     private startLowFrequencyLoop() {
-        const finishedRooms = new Set<string>();
+
 
         setInterval(() => {
             const rooms = this.getRooms();
@@ -187,9 +196,9 @@ export class PhysicsEngine {
                 if (
                     room?.laps &&
                     car.laps >= room.laps &&
-                    !finishedRooms.has(roomId)
+                    !this.finishedRooms.has(roomId)
                 ) {
-                    finishedRooms.add(roomId);
+                    this.finishedRooms.add(roomId);
                     this.onRaceFinished(roomId, socketId);
                 }
             });

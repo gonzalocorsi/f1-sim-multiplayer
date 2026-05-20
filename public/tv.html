@@ -46,6 +46,7 @@
     ">VOLVER AL LOBBY</button>
 </div>
 <script>
+let currentHostId = null;
     const socket = io();
     const canvas = document.getElementById('renderCanvas');
     const ctx = canvas.getContext('2d');
@@ -138,10 +139,20 @@ socket.on('countdown', (n) => {
     }
 });
 
+
+socket.on('force_reload', () => {
+const podioOverlay = document.getElementById('podio-overlay');
+const countdownOverlay = document.getElementById('countdown-overlay');
+podioOverlay.style.display= 'none'
+countdownOverlay.style.display= 'none'});
+
+
 // PODIO
 socket.on('race_finished', ({ winnerId, podio }) => {
+	currentHostId=winnerId;
     const overlay = document.getElementById('podio-overlay');
     const lista   = document.getElementById('podio-lista');
+	console.log ('ganador: ', winnerId);
     
     const medallas = ['🥇', '🥈', '🥉'];
       if (!podio || podio.length === 0) {
