@@ -27,7 +27,8 @@ export interface Room {
     status: 'waiting' | 'racing' | 'finished'| 'coming_soon'| 'countdown';
 	hadPlayers?: boolean; 
 	creatorId?: string;    // socketId del que creó la sala
-	laps?: number;         // vueltas configuradas al crear
+	laps?: number;   // vueltas configuradas al crear
+	creatorSocketId?: string;
 }
 
 export interface RedirectData {
