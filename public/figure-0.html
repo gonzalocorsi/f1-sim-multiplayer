@@ -95,6 +95,18 @@ let currentHostId = null;
 // 3. COMUNICACIÓN ACTUALIZADA
 const urlParams = new URLSearchParams(window.location.search);
 const roomId = urlParams.get('room') || 'default-room';
+const tireBarriers = [];
+function initStaticElements() {
+    const barrierY = 450;
+    const tireRadius = 18;
+    // Usamos los mismos valores que tenías en el servidor
+    for (let x = 650; x <= 950; x += tireRadius * 2) {
+        tireBarriers.push({ position: { x: x, y: barrierY } });
+    }
+}
+
+// Llamamos a esta función una única vez al iniciar
+initStaticElements();
 
 socket.on('connect', () => {
     console.log("Conectado al servidor - Sala:", roomId);
@@ -113,6 +125,7 @@ socket.on('connect', () => {
 
 // El evento ahora es el mismo, pero solo recibiremos datos de nuestra sala
 socket.on('state_update', (data) => {
+	console.log('Datos del servidor:', data.players[0]);
     gameState = data;
     const label = document.getElementById('player-count');
     if(label && data.players) {
@@ -350,23 +363,22 @@ ctx.setLineDash([]);
     ctx.restore();
 }
 function drawTireBarrier() {
-    if (!gameState.tireBarrier) return;
-    gameState.tireBarrier.forEach((t, i) => {
+	tireBarriers.forEach((t, i) => {
         const isRed = i % 2 === 0;
         // Goma exterior
         ctx.beginPath();
-        ctx.arc(t.x, t.y, 18, 0, Math.PI * 2);
+        ctx.arc(t.position.x, t.position.y, 18, 0, Math.PI * 2);
         ctx.fillStyle = "#1a1a1a";
         ctx.fill();
         // Banda de color (rojo o blanco)
         ctx.beginPath();
-        ctx.arc(t.x, t.y, 18, 0, Math.PI * 2);
+        ctx.arc(t.position.x, t.position.y, 18, 0, Math.PI * 2);
         ctx.strokeStyle = isRed ? "#cc0000" : "#ffffff";
         ctx.lineWidth = 5;
         ctx.stroke();
         // Aro interior
         ctx.beginPath();
-        ctx.arc(t.x, t.y, 8, 0, Math.PI * 2);
+        ctx.arc(t.position.x, t.position.y, 8, 0, Math.PI * 2);
         ctx.fillStyle = "#333";
         ctx.fill();
     });
@@ -579,10 +591,12 @@ function drawLeaderboard() {
         ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.scale(scale, scale);
         ctx.translate(-worldWidth / 2, -worldHeight / 2);
-
+		
+		
         drawTrack();
+		drawTireBarrier();
 		drawGridMarks();
-drawTireBarrier();
+		
         // Partículas: Filtrar y actualizar
         particles = particles.filter(p => p.life > 0);
         particles.forEach(p => { p.update(); p.draw(ctx); });

@@ -29,6 +29,7 @@ export interface Room {
 	creatorId?: string;    // socketId del que creó la sala
 	laps?: number;   // vueltas configuradas al crear
 	creatorSocketId?: string;
+	mapId: string;
 }
 
 export interface RedirectData {

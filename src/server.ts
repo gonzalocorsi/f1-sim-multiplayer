@@ -9,6 +9,7 @@ import { Room } from './types.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
@@ -59,6 +60,21 @@ app.get('/api/servers', (req, res) => {
 });
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
+app.get('/tv.html', (req, res) => {
+    // 1. Agarramos el ID de la sala que viene en la URL (?room=...)
+    const roomId = req.query.room as string;
+    
+    // 2. Buscamos el objeto de la sala en tu array global 'rooms'
+    const room = rooms.find(r => r.id === roomId);
+
+    // 3. Evaluamos qué mapa tiene asignado y enviamos el HTML correcto
+    if (room && room.mapId) {
+        res.sendFile(path.join(__dirname, '../public', `${room.mapId}.html`));
+    } else {
+        // Si no es el 8, o no existe, mandamos el óvalo clásico por defecto
+        res.sendFile(path.join(__dirname, '../public/figure-0.html'));
+    }
+});
 
 io.on('connection', (socket) => {
     console.log(`📡 Conectado: ${socket.id}`);
@@ -80,27 +96,38 @@ socket.on('join_session', ({ roomId, type, creatorToken }) => {
     socket.rooms.forEach(r => { if (r !== socket.id) socket.leave(r); });
     socket.join(roomId);
 
-    const room = rooms.find(r => r.id === roomId); // ← recién acá
-    console.log(`room.creatorId: ${room?.creatorId}`);
+   // 1. Buscamos la sala inmediatamente después de socket.join(roomId)
+	const room = rooms.find(r => r.id === roomId);
 
-    if (type === 'mando' || type === 'solo' || type === 'tv') {
-        if (type !== 'tv') physics.addCar(socket.id, roomId);
+	// 2. Ahora sí el log es seguro
+	console.log(`room.creatorId: ${room?.creatorId}`);
 
-        if (room) {
-			console.log('Token del mando:', creatorToken, 'Token real:', room.creatorId);
-            room.hadPlayers = true;
-            if (room.creatorId && room.status === 'waiting') {
-                physics.setRoomLocked(roomId, true);
-            }
-        }
+	if (type === 'mando' || type === 'solo' || type === 'tv') {
 		
-        if (type === 'mando' && creatorToken && room?.creatorId === creatorToken) {
-            room.creatorSocketId = socket.id;
-            socket.emit('you_are_creator', { token: creatorToken });
-        }
+		
+
+		if (room) {
+			console.log('Token del mando:', creatorToken, 'Token real:', room.creatorId);
+			if (type === 'tv') {
+					socket.emit('init_track', { mapId: room.mapId });
+			}
+			// 3. Si no es la TV, agregamos el auto usando el mapId de la sala que encontramos arriba
+			if (type !== 'tv') {
+				physics.addCar(socket.id, roomId, room?.mapId || 'figure-0');
+			}
+			room.hadPlayers = true;
+			if (room.creatorId && room.status === 'waiting') {
+				physics.setRoomLocked(roomId, true);
+			}
+			
+			if (type === 'mando' && creatorToken && room.creatorId === creatorToken) {
+				room.creatorSocketId = socket.id;
+				socket.emit('you_are_creator', { token: creatorToken });
+			}
 		} else {
-    console.log(`Alerta: No se encontró la sala con ID ${roomId}`);
-}
+			console.log(`Alerta: No se encontró la sala con ID ${roomId}`);
+		}
+	}
 
         broadcastRoomUpdate();
     
@@ -120,7 +147,8 @@ socket.on('join_session', ({ roomId, type, creatorToken }) => {
             maxPlayers: 12,
             laps: data.laps,
             creatorId: roomId,
-            status: 'waiting'
+            status: 'waiting',
+			mapId: data.mapName
         };
         rooms.push(newRoom);
         console.log(`Nueva sala creada: ${newRoom.name}`);

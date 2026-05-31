@@ -61,7 +61,7 @@ window.closeModal = function() {
 };
 
 // 3. Función al hacer clic en una sala
-window.joinRoom = function(roomId) {
+window.joinRoom = function(roomId, mapId) {
     const role = localStorage.getItem('f1pro_role');
     
     if (!role) {
@@ -74,7 +74,7 @@ window.joinRoom = function(roomId) {
     else if (role === "tv") targetPage = "tv.html";
     else targetPage = "solo.html";
 
-    window.location.href = `/${targetPage}?room=${roomId}`;
+    window.location.href = `/${targetPage}?room=${roomId}&map=${mapId}`;
 };
 
 socket.on("update_rooms", (rooms) => {
@@ -94,7 +94,7 @@ socket.on("update_rooms", (rooms) => {
         
         if (isAvailable) {
             // Ahora llama directamente a joinRoom
-            card.onclick = () => joinRoom(room.id);
+            card.onclick = () => joinRoom(room.id, room.mapId);
         } else {
             card.style.opacity = "0.5";
             card.style.cursor = "not-allowed";

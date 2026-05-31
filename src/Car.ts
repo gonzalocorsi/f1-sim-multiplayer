@@ -12,14 +12,15 @@ private readonly LAP_COOLDOWN = 1000; // ms
     public isTurbo: boolean = false;
     public turnValue: number = 0;
     public laps: number = 0;
+	public nextCheckpointIndex: number = 0;
+	public lastCheckpointIndex: number = -1;
 	
-    public passedHalf: boolean = false;
+
     public tireHealth: number = 1.0; 
     public energy: number = 1.0; // Añadido para el ERS
 	public isOnGrass: boolean = false;
 	public isReverse: boolean = false;
-	public inFinishZone: boolean = false;
-	public inCheckpointZone: boolean = false;
+
 
     constructor(public id: string, public color: string, x: number, y: number) {
         this.body = Bodies.rectangle(x, y, 50, 25, {
@@ -119,7 +120,8 @@ if (this.isReverse) {
             const turnAbility = Math.min(speed / 8, 1.2);
             Body.setAngularVelocity(this.body, this.turnValue * 0.08 * turnAbility * turnMultiplier);}
 			
-			
+			this.prevX = this.body.position.x;
+this.prevY = this.body.position.y;
 			    
     }
 
@@ -140,32 +142,45 @@ private segmentsIntersect(
     return t >= 0 && t <= 1 && u >= 0 && u <= 1;
 }
 
-checkLap() {
+checkLap(mapConfig: any) {
+	if (!mapConfig ||!mapConfig.checkpoints) return; 
+		
     const x = this.body.position.x;
     const y = this.body.position.y;
     const now = Date.now();
+	this.nextCheckpointIndex = this.nextCheckpointIndex % mapConfig.checkpoints.length;
 
     if (now - this.lastLapTime < this.LAP_COOLDOWN) return;
 
     // CHECKPOINT: franja horizontal donde pasa el auto en la recta de arriba
-    const atCheckpoint = y > 160 && y < 340 && x > 760 && x < 850;
+    const atCurrentCheckpoint = mapConfig.checkpoints[this.nextCheckpointIndex](x,y);
+	
+    
+    
+	
+	// 3. Lógica de progreso:
+	if (atCurrentCheckpoint) {
+			// Solo progresar si es un checkpoint nuevo (diferente al último registrado)
+			if (this.nextCheckpointIndex !== this.lastCheckpointIndex) {
+				this.lastCheckpointIndex = this.nextCheckpointIndex; // Marcamos como visitado
+				this.nextCheckpointIndex++;
 
-    // META: franja horizontal donde pasa el auto en la recta de abajo
-    const atFinish = y > 560 && y < 730 && x > 760 && x < 850;
-
-    if (atCheckpoint && !this.inCheckpointZone) {
-        this.passedHalf = true;
-    }
-    this.inCheckpointZone = atCheckpoint;
-
-    if (atFinish && !this.inFinishZone && this.passedHalf) {
-        this.laps++;
-        this.passedHalf = false;
-        this.lastLapTime = now;
-        console.log(`✅ Vuelta! Car ${this.id} | laps: ${this.laps}`);
-    }
-    this.inFinishZone = atFinish;
-}
+				// Verificar si completó la vuelta (llegó al final del array)
+				if (this.nextCheckpointIndex >= mapConfig.checkpoints.length) {
+					if (now - this.lastLapTime >= this.LAP_COOLDOWN) {
+						this.laps++;
+						this.lastLapTime = now;
+						console.log(`✅ Vuelta! Car ${this.id} | laps: ${this.laps}`);
+					}
+					this.nextCheckpointIndex = 0;
+				}
+			}
+			console.log (`✅ pisaste el checkpoint nro${this.nextCheckpointIndex}`)
+		} else {
+			// Si sale de la zona, reseteamos la bandera para permitir el próximo checkpoint
+			this.lastCheckpointIndex = -1;
+		}
+	}
 
 public destroy(world: Matter.World) {
     Matter.Composite.remove(world, this.body);
