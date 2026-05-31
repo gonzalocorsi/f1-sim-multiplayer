@@ -1,4 +1,19 @@
-
+// Definimos la estructura del mapa
+export interface MapProperties {
+    id: string;
+    name: string;
+    grid: {
+        gridStartX: number;
+        gridStartY: number;
+        offsetX: number;
+        offsetY: number;
+        offsetYRow?: number; // El signo ? lo hace opcional
+        offsetYLane?: number;
+    };
+    checkGrass: (x: number, y: number) => boolean;
+    checkSolidObstacles: (x: number, y: number) => boolean;
+    checkpoints: ((x: number, y: number) => boolean)[];
+}
 // Estructura abstracta para MapConfigs.ts
 export const MAPS_CONFIG : Record<string, MapProperties> = {
     'figure-0': {

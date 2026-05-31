@@ -36,6 +36,7 @@ let rooms: Room[] = [
         id: 'gp-argentina',
         name: 'GP de Argentina',
         mapName: 'Bahía Blanca',
+		mapId: 'figure-0',
         maxPlayers: 20,
         playerCount: 0,
         status: 'waiting'
