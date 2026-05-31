@@ -2,7 +2,7 @@ import Matter from 'matter-js';
 import { Server } from 'socket.io';
 import { Car } from './Car.js';
 import { PlayerInput, Room } from './types.js';
-import { MAPS_CONFIG } from './mapConfigs.js';
+import { MAPS_CONFIG } from './MapConfigs.js';
 
 export class PhysicsEngine {
 	
