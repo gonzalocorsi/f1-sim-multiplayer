@@ -107,7 +107,7 @@ export class PhysicsEngine {
             posX,
             posY
         );
-
+		car.body.angle = grid.startAngle ?? 0;
         car.body.label = 'car';
         this.players.set(socketId, { car, roomId, mapId });
         Matter.Composite.add(this.engine.world, car.body);

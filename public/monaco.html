@@ -95,7 +95,6 @@ let currentHostId = null;
 // 3. COMUNICACIÓN ACTUALIZADA
 const urlParams = new URLSearchParams(window.location.search);
 const roomId = urlParams.get('room') || 'default-room';
-const tireBarriers = [];
 
 
 // Llamamos a esta función una única vez al iniciar
@@ -199,7 +198,8 @@ socket.on('race_finished', ({ winnerId, podio }) => {
     ctx.fill();
     ctx.restore();
 }
-	
+
+
 	function drawGridMarks() {
     const GRID_START_X = 400;
     const GRID_START_Y = 55;
@@ -328,6 +328,8 @@ function drawYacht(x, y, scale = 1) {
 
     ctx.restore();
 }
+
+
 let oceanTime = 0;
 
 function drawOcean() {
@@ -386,6 +388,7 @@ ctx.fillStyle = "#EECB5E";
 		
 	
 }
+
 function drawHarbor(x, y, width) {
 
     // Muelle

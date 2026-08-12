@@ -16,235 +16,145 @@ export interface MapProperties {
     checkpoints: ((x: number, y: number) => boolean)[];
 }
 
-const TRACK_WIDTH = 182;
-const TRACK_HALF_WIDTH = TRACK_WIDTH / 2;
 
+function isOnGrass(
+    x: number,
+    y: number,
+    curves: number[][][],
+    trackWidth: number
+): boolean {
 
-// Calcula un punto de una curva Bézier cúbica
-function bezierPoint(
-    p0: { x: number, y: number },
-    p1: { x: number, y: number },
-    p2: { x: number, y: number },
-    p3: { x: number, y: number },
-    t: number
-) {
-    const mt = 1 - t;
+    const halfWidth = trackWidth / 2;
+    const steps = 20;
 
-    return {
-        x:
-            mt * mt * mt * p0.x +
-            3 * mt * mt * t * p1.x +
-            3 * mt * t * t * p2.x +
-            t * t * t * p3.x,
+    for (const curve of curves) {
 
-        y:
-            mt * mt * mt * p0.y +
-            3 * mt * mt * t * p1.y +
-            3 * mt * t * t * p2.y +
-            t * t * t * p3.y
-    };
-}
+        const [p0, p1, p2, p3] = curve;
 
+        let previousX = p0[0];
+        let previousY = p0[1];
 
-// Distancia de un punto a un segmento
-function distanceToSegment(
-    px: number,
-    py: number,
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number
-): number {
+        for (let i = 1; i <= steps; i++) {
 
-    const dx = x2 - x1;
-    const dy = y2 - y1;
+            const t = i / steps;
+            const mt = 1 - t;
 
-    // Segmento de longitud 0
-    if (dx === 0 && dy === 0) {
-        return Math.hypot(px - x1, py - y1);
-    }
+            const currentX =
+                mt * mt * mt * p0[0] +
+                3 * mt * mt * t * p1[0] +
+                3 * mt * t * t * p2[0] +
+                t * t * t * p3[0];
 
-    // Proyección del punto sobre el segmento
-    let t =
-        ((px - x1) * dx + (py - y1) * dy) /
-        (dx * dx + dy * dy);
+            const currentY =
+                mt * mt * mt * p0[1] +
+                3 * mt * mt * t * p1[1] +
+                3 * mt * t * t * p2[1] +
+                t * t * t * p3[1];
 
-    // Limitamos al segmento
-    t = Math.max(0, Math.min(1, t));
+            const dx = currentX - previousX;
+            const dy = currentY - previousY;
 
-    const closestX = x1 + t * dx;
-    const closestY = y1 + t * dy;
+            const lengthSquared = dx * dx + dy * dy;
 
-    return Math.hypot(
-        px - closestX,
-        py - closestY
-    );
-}
+            let tSegment =
+                ((x - previousX) * dx +
+                 (y - previousY) * dy) /
+                lengthSquared;
 
-function createTrackCenterline() {
+            tSegment = Math.max(0, Math.min(1, tSegment));
 
-    const points: { x: number, y: number }[] = [];
+            const closestX =
+                previousX + tSegment * dx;
 
-    function addBezier(
-    p0: { x: number, y: number },
-    p1: { x: number, y: number },
-    p2: { x: number, y: number },
-    p3: { x: number, y: number }
-) {
+            const closestY =
+                previousY + tSegment * dy;
 
-    const STEPS = 40;
+            const distance =
+                Math.hypot(
+                    x - closestX,
+                    y - closestY
+                );
 
-    for (let i = 0; i <= STEPS; i++) {
+            if (distance <= halfWidth) {
+                return false; // está sobre asfalto
+            }
 
-        // Si no es la primera curva, evitamos repetir p0
-        if (points.length > 0 && i === 0) {
-            continue;
-        }
-
-        const t = i / STEPS;
-
-        points.push(
-            bezierPoint(p0, p1, p2, p3, t)
-        );
-    }
-}
-
-
-    // Punto inicial
-    let current = { x: 100, y: 400 };
-
-
-    // 1 ─────────────────────────────
-    // Subida
-    addBezier(
-        current,
-        { x: 50, y: 737 },
-        { x: 200, y: 1100 },
-        { x: 300, y: 400 }
-    );
-
-    current = { x: 300, y: 400 };
-
-
-    // 2 ─────────────────────────────
-    // Chicana
-    addBezier(
-        current,
-        { x: 350, y: 260 },
-        { x: 450, y: 260 },
-        { x: 600, y: 260 }
-    );
-
-    current = { x: 600, y: 260 };
-
-
-    // 3 ─────────────────────────────
-    // Gran curva derecha
-    addBezier(
-        current,
-        { x: 700, y: 260 },
-        { x: 1000, y: 240 },
-        { x: 1200, y: 650 }
-    );
-
-    current = { x: 1200, y: 650 };
-
-
-    // 4 ─────────────────────────────
-    addBezier(
-        current,
-        { x: 1250, y: 850 },
-        { x: 1480, y: 850 },
-        { x: 1500, y: 700 }
-    );
-
-    current = { x: 1500, y: 700 };
-
-
-    // 5 ─────────────────────────────
-    addBezier(
-        current,
-        { x: 1500, y: 700 },
-        { x: 1500, y: 500 },
-        { x: 1500, y: 200 }
-    );
-
-    current = { x: 1500, y: 200 };
-
-
-    // 6 ─────────────────────────────
-    addBezier(
-        current,
-        { x: 1500, y: 200 },
-        { x: 1500, y: 0 },
-        { x: 1300, y: 200 }
-    );
-
-    current = { x: 1300, y: 200 };
-
-
-    // 7 ─────────────────────────────
-    addBezier(
-        current,
-        { x: 1290, y: 200 },
-        { x: 1200, y: 300 },
-        { x: 1190, y: 100 }
-    );
-
-    current = { x: 1190, y: 100 };
-
-
-    // 8 ─────────────────────────────
-    addBezier(
-        current,
-        { x: 1200, y: 100 },
-        { x: 400, y: 100 },
-        { x: 300, y: 100 }
-    );
-
-    current = { x: 300, y: 100 };
-
-
-    // 9 ─────────────────────────────
-    // Regreso al inicio
-    addBezier(
-        current,
-        { x: 100, y: 110 },
-        { x: 130, y: 200 },
-        { x: 100, y: 400 }
-    );
-
-
-    return points;
-}
-
-const trackCenterline = createTrackCenterline();
-
-function isOnGrass(x: number, y: number): boolean {
-
-    let minDistance = Infinity;
-
-    for (let i = 0; i < trackCenterline.length - 1; i++) {
-
-        const p1 = trackCenterline[i];
-        const p2 = trackCenterline[i + 1];
-
-        const distance = distanceToSegment(
-            x,
-            y,
-            p1.x,
-            p1.y,
-            p2.x,
-            p2.y
-        );
-
-        if (distance < minDistance) {
-            minDistance = distance;
+            previousX = currentX;
+            previousY = currentY;
         }
     }
 
-    return minDistance > TRACK_HALF_WIDTH;
+    return true; // está sobre pasto
 }
+
+const MONACO_TRACK = [
+
+    [
+        [100, 400],
+        [50, 737],
+        [200, 1100],
+        [300, 400]
+    ],
+
+    [
+        [300, 400],
+        [350, 260],
+        [450, 260],
+        [600, 260]
+    ],
+
+    [
+        [600, 260],
+        [700, 260],
+        [1000, 240],
+        [1200, 650]
+    ],
+
+    [
+        [1200, 650],
+        [1250, 850],
+        [1480, 850],
+        [1500, 700]
+    ],
+
+    [
+        [1500, 700],
+        [1500, 500],
+        [1500, 200],
+        [1500, 200]
+    ],
+
+    [
+        [1500, 200],
+        [1500, 0],
+        [1500, 0],
+        [1300, 200]
+    ],
+
+    [
+        [1300, 200],
+        [1290, 200],
+        [1200, 300],
+        [1190, 100]
+    ],
+
+    [
+        [1190, 100],
+        [1200, 100],
+        [400, 100],
+        [300, 100]
+    ],
+
+    [
+        [300, 100],
+        [100, 110],
+        [130, 200],
+        [100, 400]
+    ]
+];
+
+
+
 
 
 
@@ -353,22 +263,31 @@ export const MAPS_CONFIG : Record<string, MapProperties> = {
             offsetX: 100,
             offsetY: 80,
             offsetYRow: 0,
-			startAngle: Math.PI,
+			startAngle: Math.PI/2,
 
 			
         },
 		 checkGrass: (x: number, y: number) => {
-        return isOnGrass(x, y);
-    },
+    if (
+        x >= 400 &&
+        x <= 1000 &&
+        y >= 550 &&
+        y <= 650
+    ) {
+        return false;
+    }
 
-		checkSolidObstacles: (x: number, y: number): boolean => {
+    return isOnGrass(x, y, MONACO_TRACK, 182);
+},
+	checkSolidObstacles: (x: number, y: number): boolean => {
 			
-			if (x >= 632 && x <= 968 && y >= 432&& y <= 468 ){
+			if (x >= 420 && x <= 870 && y >= 650&& y <= 685 ){
 			
 			return true;}
 			else{return false;}
 			
 		},
+
 		checkpoints: [
 			(x, y) =>  {   return y > 595 && y < 685 && x > 0 && x < 180;} ,
 			(x, y) =>  {   return y > 595 && y < 685 && x >  180&& x < 360;} ,
